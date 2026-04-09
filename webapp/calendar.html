@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>반디 월별 캘린더</title>
+  <style>
+    :root {
+      --ink: #31353c;
+      --ink-soft: #72767d;
+      --paper-base: rgba(250, 245, 236, 0.88);
+      --paper-strong: rgba(252, 248, 241, 0.96);
+      --line: rgba(49, 53, 60, 0.12);
+      --shadow-lg: 0 28px 48px rgba(95, 79, 58, 0.18);
+      --shadow-sm: 0 10px 18px rgba(95, 79, 58, 0.11);
+      --paper-lift: 0 2px 0 rgba(255, 255, 255, 0.5) inset, 0 -10px 18px rgba(95, 79, 58, 0.035) inset;
+      --radius-xl: 34px;
+      --radius-lg: 26px;
+      --font-display: "Avenir Next", "Apple SD Gothic Neo", sans-serif;
+      --font-body: "Pretendard", "Apple SD Gothic Neo", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font-body);
+      color: var(--ink);
+      background: linear-gradient(180deg, #efe6d8 0%, #f5eee4 40%, #ede3d4 100%);
+    }
+    .page-shell {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 28px 22px 56px;
+    }
+    .site-header,
+    .calendar-header,
+    .calendar-grid-shell {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(49,53,60,0.08);
+      background: var(--paper-base);
+      border-radius: 28px;
+      box-shadow: var(--shadow-lg), var(--paper-lift);
+    }
+    .site-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-radius: 999px;
+      margin-bottom: 28px;
+      overflow: visible;
+    }
+    .site-header::before,
+    .calendar-header::before,
+    .calendar-grid-shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.34), transparent 32%),
+        repeating-linear-gradient(0deg, transparent 0, transparent 10px, rgba(120,103,79,0.012) 10px, rgba(120,103,79,0.012) 11px);
+      pointer-events: none;
+    }
+    .brand {
+      display: inline-flex;
+      gap: 14px;
+      align-items: center;
+      text-decoration: none;
+      color: inherit;
+      position: relative;
+      z-index: 1;
+    }
+    .brand img { width: 50px; height: 50px; object-fit: contain; }
+    .brand span { font-family: var(--font-display); font-size: 1.34rem; font-weight: 730; }
+    .nav-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 42px;
+      padding: 0 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(49,53,60,0.08);
+      background: rgba(255,255,255,0.72);
+      text-decoration: none;
+      color: inherit;
+      font-weight: 700;
+      position: relative;
+      z-index: 1;
+    }
+    .calendar-layout { display: grid; gap: 28px; }
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--ink-soft);
+      font-size: 0.82rem;
+      font-weight: 740;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+    .calendar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 22px 24px;
+    }
+    .calendar-header > * { position: relative; z-index: 1; }
+    h1 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 3.4vw, 3.2rem);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+    .calendar-controls { display: flex; gap: 12px; }
+    .month-select {
+      min-width: 210px;
+      min-height: 48px;
+      padding: 0 18px;
+      border: 1px solid rgba(49,53,60,0.08);
+      border-radius: 999px;
+      background: rgba(252, 248, 241, 0.9);
+      font-weight: 650;
+    }
+    .calendar-grid-shell {
+      padding: 18px;
+      background: rgba(247, 242, 234, 0.9);
+    }
+    .calendar-grid {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .day-card {
+      min-height: 178px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border: 1px solid rgba(49, 53, 60, 0.08);
+      border-radius: 20px;
+      background: #fbf7f0;
+      box-shadow: var(--shadow-sm), var(--paper-lift);
+      text-align: left;
+      cursor: pointer;
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+    }
+    .day-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 24px rgba(95,79,58,0.14), var(--paper-lift);
+    }
+    .day-card.closed {
+      background: #efebe3;
+    }
+    .day-card.selected {
+      border-color: rgba(143,115,92,0.38);
+      box-shadow: 0 0 0 2px rgba(143,115,92,0.08), 0 18px 28px rgba(95,79,58,0.18), var(--paper-lift);
+    }
+    .day-card.special-day .day-number { color: #8a7278; }
+    .day-card.special-day .day-number small { color: #988287; }
+    .day-number {
+      font-family: var(--font-display);
+      font-size: 1.68rem;
+      font-weight: 660;
+      letter-spacing: -0.05em;
+      color: #4a4f58;
+    }
+    .day-number small {
+      margin-left: 6px;
+      font-family: var(--font-body);
+      font-size: 0.84rem;
+      font-weight: 640;
+      color: #7b8089;
+      vertical-align: middle;
+    }
+    .day-meta {
+      color: #7a7f87;
+      font-size: 0.92rem;
+      font-weight: 560;
+    }
+    .day-note {
+      margin-top: auto;
+      min-height: 3.1em;
+      padding-top: 10px;
+      border-top: 1px dashed rgba(49, 53, 60, 0.12);
+      font-size: 0.88rem;
+      line-height: 1.45;
+      color: #7a7f87;
+    }
+    .day-note.empty { opacity: 0.26; }
+    @media (max-width: 900px) {
+      .page-shell { padding: 18px 12px 32px; }
+      .calendar-header { flex-direction: column; align-items: flex-start; }
+      .calendar-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <main class="page-shell">
+    <header class="site-header">
+      <a class="brand" href="./index.html">
+        <img src="./반디로고.png" alt="반디 로고" />
+        <span>반디</span>
+      </a>
+      <a class="nav-link" href="./index.html">셔틀 홈</a>
+    </header>
+    <section class="calendar-layout">
+      <section class="calendar-header">
+        <div>
+          <p class="eyebrow">월별 셔틀 캘린더</p>
+          <h1>2026년 4월</h1>
+        </div>
+        <div class="calendar-controls">
+          <select class="month-select" id="month-select"></select>
+        </div>
+      </section>
+      <section class="calendar-grid-shell">
+        <div class="calendar-grid" id="calendar-grid"></div>
+      </section>
+    </section>
+  </main>
+  <script>
+    const calendarData = {
+      months: [{"key": "2026-04", "label": "2026년 4월"}],
+      days: [{"date": "2026-04-01", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-02", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-03", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-04", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-05", "isSundayClosed": true, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-06", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-07", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-08", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-09", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-10", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-11", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-12", "isSundayClosed": true, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-13", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-14", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-15", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-16", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-17", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-18", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-19", "isSundayClosed": true, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-20", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-21", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-22", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-23", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-24", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-25", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-26", "isSundayClosed": true, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-27", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-28", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-29", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-30", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}],
+      shuttleCounts: {"2026-03-19": 55, "2026-03-20": 60, "2026-03-21": 25, "2026-03-23": 64, "2026-03-24": 52, "2026-03-25": 56, "2026-03-27": 64, "2026-03-30": 61, "2026-03-31": 56, "2026-04-01": 60, "2026-04-02": 54, "2026-04-03": 63},
+      baseDate: "2026-04-03",
+    };
+    const weekdayNames = ["일", "월", "화", "수", "목", "금", "토"];
+    const monthSelect = document.getElementById("month-select");
+    const calendarGrid = document.getElementById("calendar-grid");
+    const availableMonthKeys = calendarData.months.map((month) => month.key);
+
+    function currentSearchParams() {
+      return new URLSearchParams(window.location.search);
+    }
+
+    function resolveActiveMonth() {
+      const requested = currentSearchParams().get("month");
+      if (requested && availableMonthKeys.includes(requested)) return requested;
+      const baseMonth = calendarData.baseDate.slice(0, 7);
+      if (availableMonthKeys.includes(baseMonth)) return baseMonth;
+      return availableMonthKeys[0] || baseMonth;
+    }
+
+    function resolveSelectedDate(monthKey) {
+      const requested = currentSearchParams().get("date");
+      const monthDays = calendarData.days.filter((day) => day.date.startsWith(monthKey));
+      if (requested && monthDays.some((day) => day.date === requested)) return requested;
+      return monthDays.find((day) => !day.isSundayClosed)?.date || monthDays[0]?.date || calendarData.baseDate;
+    }
+
+    let activeMonth = resolveActiveMonth();
+    let selectedDate = resolveSelectedDate(activeMonth);
+
+    function syncCalendarUrl(replace = false) {
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.set("month", activeMonth);
+      nextUrl.searchParams.set("date", selectedDate);
+      if (replace) {
+        window.history.replaceState({ month: activeMonth, date: selectedDate }, "", nextUrl);
+      } else {
+        window.history.pushState({ month: activeMonth, date: selectedDate }, "", nextUrl);
+      }
+    }
+
+    function renderMonthOptions() {
+      monthSelect.innerHTML = calendarData.months
+        .map((month) => `<option value="${month.key}" ${month.key === activeMonth ? "selected" : ""}>${month.label}</option>`)
+        .join("");
+    }
+
+    function renderCalendar() {
+      const days = calendarData.days.filter((day) => day.date.startsWith(activeMonth));
+      calendarGrid.innerHTML = days
+        .map((day) => {
+          const currentDate = new Date(day.date + "T12:00:00");
+          const weekday = weekdayNames[currentDate.getDay()];
+          const isSpecial = day.isHoliday || day.isSundayClosed;
+          const count = calendarData.shuttleCounts[day.date];
+          const note = day.holidayName || day.remarks || "\u00A0";
+          return `
+            <button
+              type="button"
+              class="day-card ${day.isSundayClosed ? "closed" : ""} ${isSpecial ? "special-day" : ""} ${selectedDate === day.date ? "selected" : ""}"
+              data-date="${day.date}"
+            >
+              <span class="day-number">${currentDate.getDate()} <small>${weekday}</small></span>
+              <span class="day-meta">${count != null ? `등영 인원 ${count}명` : "등영 인원 -"}</span>
+              <span class="day-note ${note.trim() ? "" : "empty"}">${note}</span>
+            </button>
+          `;
+        })
+        .join("");
+    }
+
+    monthSelect.addEventListener("change", (event) => {
+      activeMonth = event.target.value;
+      const monthDays = calendarData.days.filter((day) => day.date.startsWith(activeMonth));
+      selectedDate = monthDays.find((day) => !day.isSundayClosed)?.date || monthDays[0]?.date || selectedDate;
+      renderCalendar();
+      syncCalendarUrl();
+    });
+
+    calendarGrid.addEventListener("click", (event) => {
+      const card = event.target.closest("[data-date]");
+      if (!card) return;
+      selectedDate = card.dataset.date;
+      renderCalendar();
+      syncCalendarUrl();
+      window.location.href = `./index.html?date=${selectedDate}`;
+    });
+
+    window.addEventListener("popstate", () => {
+      activeMonth = resolveActiveMonth();
+      selectedDate = resolveSelectedDate(activeMonth);
+      renderMonthOptions();
+      renderCalendar();
+    });
+
+    window.addEventListener("mouseup", (event) => {
+      if (event.button === 3 && window.history.length > 1) {
+        event.preventDefault();
+        window.history.back();
+      }
+      if (event.button === 4) {
+        event.preventDefault();
+        window.history.forward();
+      }
+    });
+
+    renderMonthOptions();
+    renderCalendar();
+    syncCalendarUrl(true);
+  </script>
+</body>
+</html>
