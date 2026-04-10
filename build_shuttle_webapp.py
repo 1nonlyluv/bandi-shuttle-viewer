@@ -773,6 +773,10 @@ def render_html(
     }};
     const RESIDENT_NAMES = {json.dumps(resident_names, ensure_ascii=False)};
     const initialSchedules = JSON.parse(document.getElementById("schedule-data").textContent);
+    const API_ENDPOINTS = {{
+      config: "./api/config",
+      overrides: "./api/overrides",
+    }};
     const weekdayNames = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
     const topShell = document.getElementById("top-shell");
     const heroDateRow = document.querySelector(".hero-date-row");
@@ -814,10 +818,16 @@ def render_html(
       isAdmin: false,
       activeModal: null,
       mobileSide: "pickup",
+      backendConfigured: false,
     }};
+    let sharedRefreshHandle = null;
 
     function clone(value) {{
       return JSON.parse(JSON.stringify(value));
+    }}
+
+    function scheduleFingerprint(value) {{
+      return value ? JSON.stringify(value) : "";
     }}
 
     function isValidScheduleData(candidate) {{
@@ -857,13 +867,111 @@ def render_html(
       }}
     }}
 
-    function persistData() {{
+    function persistLocalData() {{
       if (!state.data) return;
       localStorage.setItem(storageKey(baseScheduleForDate()), JSON.stringify(state.data));
     }}
 
-    function syncScheduleForActiveDate() {{
-      state.data = loadPersistedData(baseScheduleForDate());
+    async function fetchBackendConfig() {{
+      try {{
+        const response = await window.fetch(API_ENDPOINTS.config, {{ cache: "no-store" }});
+        if (!response.ok) return false;
+        const payload = await response.json();
+        return Boolean(payload && payload.configured);
+      }} catch (_error) {{
+        return false;
+      }}
+    }}
+
+    async function loadRemoteOverride(dateKey) {{
+      if (!state.backendConfigured || !dateKey) return null;
+      try {{
+        const response = await window.fetch(`${{API_ENDPOINTS.overrides}}?date=${{encodeURIComponent(dateKey)}}`, {{
+          cache: "no-store",
+        }});
+        if (response.status === 404) return null;
+        if (!response.ok) throw new Error("override fetch failed");
+        const payload = await response.json();
+        return isValidScheduleData(payload?.data) ? payload.data : null;
+      }} catch (_error) {{
+        return null;
+      }}
+    }}
+
+    async function saveRemoteOverride(dateKey, data) {{
+      if (!state.backendConfigured || !dateKey || !isValidScheduleData(data)) return true;
+      try {{
+        const response = await window.fetch(API_ENDPOINTS.overrides, {{
+          method: "POST",
+          headers: {{ "Content-Type": "application/json" }},
+          body: JSON.stringify({{
+            date_key: dateKey,
+            data,
+            updated_by: state.isAdmin ? ADMIN_CONFIG.label : "viewer",
+          }}),
+        }});
+        return response.ok;
+      }} catch (_error) {{
+        return false;
+      }}
+    }}
+
+    async function clearRemoteOverride(dateKey) {{
+      if (!state.backendConfigured || !dateKey) return true;
+      try {{
+        const response = await window.fetch(`${{API_ENDPOINTS.overrides}}?date=${{encodeURIComponent(dateKey)}}`, {{
+          method: "DELETE",
+        }});
+        return response.ok;
+      }} catch (_error) {{
+        return false;
+      }}
+    }}
+
+    async function persistData() {{
+      if (!state.data) return;
+      persistLocalData();
+      const ok = await saveRemoteOverride(activeDateKey(), state.data);
+      if (!ok) {{
+        window.console.warn("Shared override save failed; kept local copy only.");
+      }}
+    }}
+
+    async function syncScheduleForActiveDate() {{
+      const baseSchedule = baseScheduleForDate();
+      if (!baseSchedule) {{
+        state.data = null;
+        return;
+      }}
+      if (state.backendConfigured) {{
+        const remoteState = await loadRemoteOverride(activeDateKey());
+        state.data = remoteState || clone(baseSchedule);
+        return;
+      }}
+      state.data = loadPersistedData(baseSchedule);
+    }}
+
+    async function refreshSharedState() {{
+      if (!state.backendConfigured) return;
+      const baseSchedule = baseScheduleForDate();
+      if (!baseSchedule) return;
+      const remoteState = await loadRemoteOverride(activeDateKey());
+      const nextState = remoteState || clone(baseSchedule);
+      if (scheduleFingerprint(nextState) !== scheduleFingerprint(state.data)) {{
+        state.data = nextState;
+        renderApp();
+      }}
+    }}
+
+    function ensureSharedRefreshLoop() {{
+      if (sharedRefreshHandle) {{
+        window.clearInterval(sharedRefreshHandle);
+        sharedRefreshHandle = null;
+      }}
+      if (!state.backendConfigured) return;
+      sharedRefreshHandle = window.setInterval(() => {{
+        refreshSharedState();
+      }}, 15000);
     }}
 
     function updateResidentSuggestions() {{
@@ -1510,7 +1618,7 @@ def render_html(
       URL.revokeObjectURL(url);
     }}
 
-    function updateAssignmentFromForm(button) {{
+    async function updateAssignmentFromForm(button) {{
       const card = button.closest(".vehicle-card");
       if (!card) return;
       const vehicle = findVehicle(button.dataset.vehicle);
@@ -1519,11 +1627,11 @@ def render_html(
       const driver = card.querySelector('[data-field="assignment-driver"]')?.value.trim() || null;
       const companion = card.querySelector('[data-field="assignment-companion"]')?.value.trim() || null;
       vehicle[`${{side}}_assignment`] = {{ driver, companion }};
-      persistData();
+      await persistData();
       renderApp();
     }}
 
-    function updateEntryFromForm(button) {{
+    async function updateEntryFromForm(button) {{
       const card = button.closest(".entry-card");
       if (!card) return;
       const formValues = {{
@@ -1575,7 +1683,7 @@ def render_html(
 
       markOppositeSideAbsentByName(entry.name, side, entry.absent);
 
-      persistData();
+      await persistData();
       renderApp();
     }}
 
@@ -1585,25 +1693,30 @@ def render_html(
     }}
 
     heroDateRow.querySelectorAll("[data-shift-date]").forEach((button) => {{
-      button.addEventListener("click", () => {{
+      button.addEventListener("click", async () => {{
         activeDate.setDate(activeDate.getDate() + Number(button.dataset.shiftDate));
         renderHeroDate();
         updateMobileStickyOffset();
         syncDateUrl();
-        syncScheduleForActiveDate();
+        await syncScheduleForActiveDate();
         renderApp();
       }});
     }});
 
-    window.addEventListener("popstate", () => {{
+    window.addEventListener("popstate", async () => {{
       activeDate = parseActiveDate();
       renderHeroDate();
       updateMobileStickyOffset();
-      syncScheduleForActiveDate();
+      await syncScheduleForActiveDate();
       renderApp();
     }});
 
     window.addEventListener("resize", updateMobileStickyOffset);
+    document.addEventListener("visibilitychange", () => {{
+      if (!document.hidden) {{
+        refreshSharedState();
+      }}
+    }});
 
     window.addEventListener("mouseup", (event) => {{
       if (event.button === 3 && window.history.length > 1) {{
@@ -1641,11 +1754,12 @@ def render_html(
     }});
 
     adminToggle.addEventListener("click", toggleAdminMode);
-    resetMenuItem.addEventListener("click", () => {{
+    resetMenuItem.addEventListener("click", async () => {{
       if (!window.confirm("수정 내용을 초기화하고 원본 상태로 되돌릴까요?")) return;
       const schedule = baseScheduleForDate();
       if (schedule) {{
         localStorage.removeItem(storageKey(schedule));
+        await clearRemoteOverride(activeDateKey());
         state.data = clone(schedule);
       }} else {{
         state.data = null;
@@ -1667,7 +1781,7 @@ def render_html(
     }});
     residentSearchButton.addEventListener("click", openResidentSearch);
 
-    appRoot.addEventListener("click", (event) => {{
+    appRoot.addEventListener("click", async (event) => {{
       const button = event.target.closest("[data-action]");
       if (!button) return;
       const action = button.dataset.action;
@@ -1697,7 +1811,7 @@ def render_html(
         resetMenuItem.click();
       }}
       if (action === "save-assignment") {{
-        updateAssignmentFromForm(button);
+        await updateAssignmentFromForm(button);
       }}
     }});
 
@@ -1714,7 +1828,7 @@ def render_html(
       }}
     }});
 
-    appDialog.addEventListener("click", (event) => {{
+    appDialog.addEventListener("click", async (event) => {{
       const button = event.target.closest("[data-action]");
       if (button && button.dataset.action === "close-dialog") {{
         state.activeModal = null;
@@ -1722,7 +1836,7 @@ def render_html(
         return;
       }}
       if (button && button.dataset.action === "save-entry") {{
-        updateEntryFromForm(button);
+        await updateEntryFromForm(button);
       }}
       if (button && button.dataset.action === "confirm-export") {{
         downloadExport(button.dataset.kind, button.dataset.scope);
@@ -1755,11 +1869,17 @@ def render_html(
       }}
     }});
 
-    syncScheduleForActiveDate();
-    renderHeroDate();
-    updateMobileStickyOffset();
-    syncDateUrl(true);
-    renderApp();
+    async function initializeApp() {{
+      state.backendConfigured = await fetchBackendConfig();
+      await syncScheduleForActiveDate();
+      ensureSharedRefreshLoop();
+      renderHeroDate();
+      updateMobileStickyOffset();
+      syncDateUrl(true);
+      renderApp();
+    }}
+
+    initializeApp();
   </script>
 </body>
 </html>
