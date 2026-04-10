@@ -723,7 +723,7 @@ def render_html(
       <div class="top-shell" id="top-shell">
         <header class="site-header">
           <a class="brand" href="./index.html">
-            <img class="brand-logo" src="./반디로고.png" alt="반디 로고" />
+            <img class="brand-logo" src="./logo.png" alt="반디 로고" />
             <span class="brand-text">반디</span>
           </a>
           <div class="header-actions">
@@ -2003,7 +2003,7 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
   <main class="page-shell">
     <header class="site-header">
       <a class="brand" href="./index.html">
-        <img src="./반디로고.png" alt="반디 로고" />
+        <img src="./logo.png" alt="반디 로고" />
         <span>반디</span>
       </a>
       <a class="nav-link" href="./index.html">셔틀 홈</a>
@@ -2163,10 +2163,10 @@ def build_webapp(
     source_candidates = []
     script_dir = Path(__file__).resolve().parent
     for root in (script_dir, script_dir.parent):
-        source_candidates.extend(sorted(root.glob("*로고*.png")))
+        source_candidates.extend(sorted(root.glob("*.png")))
     for source_logo in source_candidates:
         if source_logo.exists():
-            shutil.copyfile(source_logo, output.with_name("반디로고.png"))
+            shutil.copyfile(source_logo, output.with_name("logo.png"))
             break
     return output
 
