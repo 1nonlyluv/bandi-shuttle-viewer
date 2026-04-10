@@ -476,6 +476,7 @@ def render_html(
       overflow: hidden;
       border: 1px solid rgba(49, 53, 60, 0.08);
       background: var(--paper-base);
+      background-clip: padding-box;
       box-shadow: var(--shadow-lg), var(--paper-lift);
       backdrop-filter: blur(14px);
     }}
@@ -489,7 +490,8 @@ def render_html(
     .modal-shell::before {{
       content: "";
       position: absolute;
-      inset: 0;
+      inset: 1px;
+      border-radius: inherit;
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.34), transparent 32%),
         repeating-linear-gradient(0deg, transparent 0, transparent 10px, rgba(120, 103, 79, 0.012) 10px, rgba(120, 103, 79, 0.012) 11px);
@@ -642,21 +644,25 @@ def render_html(
         border-radius: 28px;
         border: 1px solid rgba(49, 53, 60, 0.08);
         background: var(--paper-base);
+        overflow: hidden;
         box-shadow: var(--shadow-lg), var(--paper-lift);
         backdrop-filter: blur(14px);
       }}
       .top-shell::before {{
-        content: "";
-        position: absolute;
-        inset: 0;
-        background:
-          linear-gradient(180deg, rgba(255,255,255,0.34), transparent 32%),
-          repeating-linear-gradient(0deg, transparent 0, transparent 10px, rgba(120,103,79,0.012) 10px, rgba(120,103,79,0.012) 11px);
-        pointer-events: none;
+        display: none;
       }}
       .top-shell > * {{ position: relative; z-index: 1; }}
       .site-header {{ margin-bottom: 0; padding: 0; border-radius: 0; flex-direction: row; align-items: center; background: transparent; box-shadow: none; border: 0; backdrop-filter: none; z-index: 120; }}
       .hero-top {{ padding: 0; border-radius: 0; background: transparent; box-shadow: none; border: 0; backdrop-filter: none; z-index: 1; }}
+      .site-header::before,
+      .hero-top::before,
+      .toolbar::before,
+      .transport-section::before,
+      .vehicle-card::before,
+      .self-card::before,
+      .order-strip-card::before {{
+        display: none;
+      }}
       .toolbar {{ border-radius: 18px; padding: 8px 10px; align-items: center; margin-top: 4px; }}
       .header-actions {{ width: auto; align-items: flex-end; }}
       .toolbar-group {{ width: 100%; align-items: stretch; }}
