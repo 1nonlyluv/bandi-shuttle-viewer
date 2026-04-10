@@ -743,13 +743,6 @@ def render_html(
           <div class="header-actions">
             <div class="header-menu">
               <button type="button" class="menu-button" id="menu-toggle" aria-label="메뉴">☰</button>
-              <div class="menu-panel" id="menu-panel">
-                <button type="button" class="menu-item" id="upload-menu-item" data-action="open-upload" hidden>월별 엑셀 업로드</button>
-                <button type="button" class="menu-item" data-action="open-export" data-kind="original">원본 내보내기</button>
-                <button type="button" class="menu-item" data-action="open-export" data-kind="edited">수정본 내보내기</button>
-                <button type="button" class="menu-item" id="reset-menu-item" data-action="reset-schedule" hidden>수정 초기화</button>
-                <button type="button" class="menu-item" id="admin-toggle">관리자 로그인</button>
-              </div>
             </div>
           </div>
         </header>
@@ -778,6 +771,13 @@ def render_html(
       </section>
     </section>
   </main>
+  <div class="menu-panel" id="menu-panel">
+    <button type="button" class="menu-item" id="upload-menu-item" data-action="open-upload" hidden>월별 엑셀 업로드</button>
+    <button type="button" class="menu-item" data-action="open-export" data-kind="original">원본 내보내기</button>
+    <button type="button" class="menu-item" data-action="open-export" data-kind="edited">수정본 내보내기</button>
+    <button type="button" class="menu-item" id="reset-menu-item" data-action="reset-schedule" hidden>수정 초기화</button>
+    <button type="button" class="menu-item" id="admin-toggle">관리자 로그인</button>
+  </div>
   <dialog id="app-dialog" class="modal-dialog"></dialog>
   <script id="schedule-data" type="application/json">{schedule_json}</script>
   <script>
@@ -1982,7 +1982,7 @@ def render_html(
         renderModal();
         return;
       }}
-      if (!event.target.closest(".header-menu")) {{
+      if (!event.target.closest(".header-menu") && !event.target.closest("#menu-panel")) {{
         menuPanel.classList.remove("is-open");
       }}
     }});
