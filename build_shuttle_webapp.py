@@ -463,7 +463,7 @@ def render_html(
         repeating-linear-gradient(90deg, rgba(83,68,49,0.012) 0, rgba(83,68,49,0.012) 1px, transparent 1px, transparent 11px);
       opacity: 0.72;
     }}
-    .page-shell {{ max-width: 1600px; margin: 0 auto; padding: 28px 22px 56px; }}
+    .page-shell {{ max-width: 520px; margin: 0 auto; padding: 18px 12px 32px; }}
     .site-header,
     .hero-top,
     .toolbar,
@@ -543,10 +543,8 @@ def render_html(
     .hero-actions {{ margin-top: 14px; display: flex; justify-content: center; }}
     .toolbar {{ display: flex; align-items: center; justify-content: center; gap: 16px; padding: 12px 14px; border-radius: var(--radius-lg); }}
     .toolbar-group {{ display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }}
-    .toolbar-group.search-group {{ flex: 1 1 620px; min-width: 0; justify-content: center; }}
-    .role-pill {{ display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 999px; background: rgba(255,255,255,0.62); border: 1px solid var(--line); font-weight: 700; }}
-    .viewer-note {{ color: var(--ink-soft); font-size: 0.92rem; }}
-    .search-shell {{ display: flex; gap: 10px; align-items: center; width: min(100%, 720px); min-width: 0; margin: 0 auto; }}
+    .toolbar-group.search-group {{ flex: 1 1 920px; min-width: 0; justify-content: center; }}
+    .search-shell {{ display: flex; gap: 10px; align-items: center; width: min(100%, 1080px); min-width: 0; margin: 0 auto; }}
     .search-field {{ flex: 1 1 auto; min-width: 0; min-height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,0.82); font: inherit; }}
     .search-field::placeholder {{ color: #96897b; }}
     .search-helper {{ color: var(--ink-soft); font-size: 0.84rem; }}
@@ -629,10 +627,10 @@ def render_html(
     .inline-button {{ min-height: 34px; padding: 0 12px; font-size: 0.82rem; font-weight: 700; }}
     .danger-button {{ background: var(--danger-soft); }}
     .empty-copy {{ color: var(--ink-soft); }}
-    .desktop-only {{ display: contents; }}
-    .mobile-only {{ display: none; }}
+    .desktop-only {{ display: none; }}
+    .mobile-only {{ display: block; }}
     @media (max-width: 1280px) {{ .vehicle-grid {{ grid-template-columns: repeat(3, minmax(0, 1fr)); }} .form-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
-    @media (max-width: 768px) {{
+    @media (max-width: 9999px) {{
       .page-shell {{ padding: 18px 12px 32px; }}
       .top-shell {{
         position: sticky;
@@ -701,7 +699,6 @@ def render_html(
       .mobile-only {{ display: block; }}
       .self-card {{ width: 100%; }}
       .meta-grid, .form-grid {{ grid-template-columns: 1fr; }}
-      .viewer-note {{ font-size: 0.78rem; line-height: 1.3; }}
       .search-shell {{ width: min(100%, 94vw); }}
       .modal-dialog[data-sheet="true"] {{
         width: 100vw;
@@ -763,10 +760,6 @@ def render_html(
             <button type="button" class="primary-button search-button" id="resident-search-button">검색</button>
           </div>
         </div>
-        <div class="toolbar-group" id="admin-toolbar-meta">
-          <div class="role-pill" id="role-pill">뷰어 모드</div>
-          <span class="viewer-note">편집은 {escape(admin_label)}만 가능합니다.</span>
-        </div>
       </section>
     </section>
   </main>
@@ -788,12 +781,9 @@ def render_html(
     const appDialog = document.getElementById("app-dialog");
     const menuToggle = document.getElementById("menu-toggle");
     const menuPanel = document.getElementById("menu-panel");
-    const rolePill = document.getElementById("role-pill");
     const adminToolbar = document.getElementById("admin-toolbar");
-    const adminToolbarMeta = document.getElementById("admin-toolbar-meta");
     const adminToggle = document.getElementById("admin-toggle");
     const resetMenuItem = document.getElementById("reset-menu-item");
-    const viewerNote = document.querySelector(".viewer-note");
     const residentSearchInput = document.getElementById("resident-search");
     const residentSearchButton = document.getElementById("resident-search-button");
     const residentSuggestions = document.getElementById("resident-suggestions");
@@ -1207,11 +1197,8 @@ def render_html(
             </section>
           </div>
         `;
-        rolePill.textContent = `${{ADMIN_CONFIG.label}} 모드`;
         adminToggle.textContent = state.isAdmin ? "관리자 종료" : "관리자 로그인";
         resetMenuItem.hidden = !state.isAdmin;
-        adminToolbarMeta.hidden = !state.isAdmin;
-        viewerNote.textContent = "편집 내용은 이 브라우저에 자동 저장됩니다.";
         return;
       }}
       appRoot.innerHTML = `
@@ -1221,11 +1208,8 @@ def render_html(
           ${{transportSectionMarkup("dropoff")}}
         </div>
       `;
-      rolePill.textContent = `${{ADMIN_CONFIG.label}} 모드`;
       adminToggle.textContent = state.isAdmin ? "관리자 종료" : "관리자 로그인";
       resetMenuItem.hidden = !state.isAdmin;
-      adminToolbarMeta.hidden = !state.isAdmin;
-      viewerNote.textContent = "편집 내용은 이 브라우저에 자동 저장됩니다.";
       if (state.activeModal) {{
         renderModal();
       }}
@@ -1821,9 +1805,9 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       background: linear-gradient(180deg, #efe6d8 0%, #f5eee4 40%, #ede3d4 100%);
     }}
     .page-shell {{
-      max-width: 1360px;
+      max-width: 520px;
       margin: 0 auto;
-      padding: 28px 22px 56px;
+      padding: 18px 12px 32px;
     }}
     .site-header,
     .calendar-header,
@@ -1925,6 +1909,18 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       grid-template-columns: repeat(7, minmax(0, 1fr));
       gap: 14px;
     }}
+    .weekday-chip {{
+      min-height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(49, 53, 60, 0.08);
+      font-size: 0.84rem;
+      font-weight: 760;
+      color: #6f747d;
+    }}
+    .weekday-chip.is-sunday {{ color: #8a7278; }}
     .day-card {{
       min-height: 178px;
       padding: 16px;
@@ -1945,6 +1941,14 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     }}
     .day-card.closed {{
       background: #efebe3;
+    }}
+    .day-card.empty-slot {{
+      min-height: 0;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      cursor: default;
     }}
     .day-card.selected {{
       border-color: rgba(143,115,92,0.38);
@@ -1982,10 +1986,16 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       color: #7a7f87;
     }}
     .day-note.empty {{ opacity: 0.26; }}
-    @media (max-width: 900px) {{
+    @media (max-width: 9999px) {{
       .page-shell {{ padding: 18px 12px 32px; }}
       .calendar-header {{ flex-direction: column; align-items: flex-start; }}
-      .calendar-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+      .calendar-grid {{ gap: 8px; }}
+      .weekday-chip {{ min-height: 34px; font-size: 0.72rem; }}
+      .day-card {{ min-height: 116px; padding: 10px; border-radius: 16px; }}
+      .day-number {{ font-size: 1.1rem; }}
+      .day-number small {{ display: block; margin: 4px 0 0; font-size: 0.7rem; }}
+      .day-meta {{ font-size: 0.74rem; }}
+      .day-note {{ min-height: 2.2em; padding-top: 8px; font-size: 0.72rem; }}
     }}
   </style>
 </head>
@@ -2066,7 +2076,12 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
 
     function renderCalendar() {{
       const days = calendarData.days.filter((day) => day.date.startsWith(activeMonth));
-      calendarGrid.innerHTML = days
+      const weekdayHeader = weekdayNames
+        .map((weekday, index) => `<div class="weekday-chip ${{index === 0 ? "is-sunday" : ""}}">${{weekday}}</div>`)
+        .join("");
+      const firstWeekday = days.length ? new Date(days[0].date + "T12:00:00").getDay() : 0;
+      const leadingSlots = Array.from({{ length: firstWeekday }}, () => `<div class="day-card empty-slot" aria-hidden="true"></div>`).join("");
+      const dayCards = days
         .map((day) => {{
           const currentDate = new Date(day.date + "T12:00:00");
           const weekday = weekdayNames[currentDate.getDay()];
@@ -2086,6 +2101,7 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
           `;
         }})
         .join("");
+      calendarGrid.innerHTML = weekdayHeader + leadingSlots + dayCards;
     }}
 
     monthSelect.addEventListener("change", (event) => {{
@@ -2144,9 +2160,14 @@ def build_webapp(
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(render_html(parsed, schedule_bundle=schedule_bundle, admin_pin=admin_pin, admin_label=admin_label), encoding="utf-8")
     output.with_name("calendar.html").write_text(render_calendar_html(parsed, schedule_bundle=schedule_bundle), encoding="utf-8")
-    source_logo = Path(__file__).resolve().parent.parent / "반디로고.png"
-    if source_logo.exists():
-        shutil.copyfile(source_logo, output.with_name("반디로고.png"))
+    source_candidates = []
+    script_dir = Path(__file__).resolve().parent
+    for root in (script_dir, script_dir.parent):
+        source_candidates.extend(sorted(root.glob("*로고*.png")))
+    for source_logo in source_candidates:
+        if source_logo.exists():
+            shutil.copyfile(source_logo, output.with_name("반디로고.png"))
+            break
     return output
 
 

@@ -27,9 +27,9 @@
       background: linear-gradient(180deg, #efe6d8 0%, #f5eee4 40%, #ede3d4 100%);
     }
     .page-shell {
-      max-width: 1360px;
+      max-width: 520px;
       margin: 0 auto;
-      padding: 28px 22px 56px;
+      padding: 18px 12px 32px;
     }
     .site-header,
     .calendar-header,
@@ -131,6 +131,18 @@
       grid-template-columns: repeat(7, minmax(0, 1fr));
       gap: 14px;
     }
+    .weekday-chip {
+      min-height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(49, 53, 60, 0.08);
+      font-size: 0.84rem;
+      font-weight: 760;
+      color: #6f747d;
+    }
+    .weekday-chip.is-sunday { color: #8a7278; }
     .day-card {
       min-height: 178px;
       padding: 16px;
@@ -151,6 +163,14 @@
     }
     .day-card.closed {
       background: #efebe3;
+    }
+    .day-card.empty-slot {
+      min-height: 0;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      cursor: default;
     }
     .day-card.selected {
       border-color: rgba(143,115,92,0.38);
@@ -188,10 +208,16 @@
       color: #7a7f87;
     }
     .day-note.empty { opacity: 0.26; }
-    @media (max-width: 900px) {
+    @media (max-width: 9999px) {
       .page-shell { padding: 18px 12px 32px; }
       .calendar-header { flex-direction: column; align-items: flex-start; }
-      .calendar-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .calendar-grid { gap: 8px; }
+      .weekday-chip { min-height: 34px; font-size: 0.72rem; }
+      .day-card { min-height: 116px; padding: 10px; border-radius: 16px; }
+      .day-number { font-size: 1.1rem; }
+      .day-number small { display: block; margin: 4px 0 0; font-size: 0.7rem; }
+      .day-meta { font-size: 0.74rem; }
+      .day-note { min-height: 2.2em; padding-top: 8px; font-size: 0.72rem; }
     }
   </style>
 </head>
@@ -272,7 +298,12 @@
 
     function renderCalendar() {
       const days = calendarData.days.filter((day) => day.date.startsWith(activeMonth));
-      calendarGrid.innerHTML = days
+      const weekdayHeader = weekdayNames
+        .map((weekday, index) => `<div class="weekday-chip ${index === 0 ? "is-sunday" : ""}">${weekday}</div>`)
+        .join("");
+      const firstWeekday = days.length ? new Date(days[0].date + "T12:00:00").getDay() : 0;
+      const leadingSlots = Array.from({ length: firstWeekday }, () => `<div class="day-card empty-slot" aria-hidden="true"></div>`).join("");
+      const dayCards = days
         .map((day) => {
           const currentDate = new Date(day.date + "T12:00:00");
           const weekday = weekdayNames[currentDate.getDay()];
@@ -292,6 +323,7 @@
           `;
         })
         .join("");
+      calendarGrid.innerHTML = weekdayHeader + leadingSlots + dayCards;
     }
 
     monthSelect.addEventListener("change", (event) => {
