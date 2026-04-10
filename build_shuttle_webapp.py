@@ -518,14 +518,14 @@ def render_html(
       font-size: 1.2rem; font-weight: 800;
     }}
     .menu-panel {{
-      position: absolute; top: 0; right: calc(100% + 10px); min-width: 220px; max-width: min(260px, calc(100vw - 88px)); padding: 8px;
+      position: fixed; top: 18px; right: 18px; min-width: 220px; max-width: min(260px, calc(100vw - 88px)); padding: 8px;
       border-radius: 18px; border: 1px solid var(--line); background: rgba(252,248,241,1);
-      box-shadow: var(--shadow-md); display: none; z-index: 80;
+      box-shadow: var(--shadow-md); display: none; z-index: 140;
     }}
     .menu-panel.is-open {{ display: grid; gap: 6px; }}
     .menu-item {{
       min-height: 40px; padding: 0 12px; border: 1px solid transparent; border-radius: 12px;
-      background: transparent; color: inherit; text-decoration: none; font-weight: 700; font-size: 0.96rem; display: inline-flex; align-items: center; cursor: pointer;
+      background: transparent; color: inherit; text-decoration: none; font-weight: 700; font-size: 1rem; line-height: 1.35; display: inline-flex; align-items: center; cursor: pointer;
     }}
     .menu-item:hover {{ background: rgba(143,115,92,0.08); border-color: var(--line); }}
     .chip-button, .nav-link, .ghost-button, .schedule-link, .self-card, .modal-close, .primary-button, .danger-button, .inline-button {{
@@ -663,13 +663,13 @@ def render_html(
       .toolbar-group:last-child {{ gap: 8px; }}
       .header-menu {{ align-self: auto; }}
       .menu-panel {{
-        top: -6px;
-        right: 0;
+        top: 16px;
+        right: 16px;
         left: auto;
-        min-width: 188px;
-        max-width: min(240px, calc(100vw - 52px));
+        min-width: 196px;
+        max-width: min(248px, calc(100vw - 32px));
       }}
-      .menu-item {{ font-size: 1.05rem; }}
+      .menu-item {{ font-size: 1.14rem; }}
       .mobile-side-tabs {{ display: flex; width: 100%; }}
       .transport-section, .vehicle-card, .order-strip-card, .modal-shell {{ border-radius: 26px; }}
       .hero-date-row {{ grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 8px; }}
@@ -1832,7 +1832,25 @@ def render_html(
       renderApp();
     }});
 
-    window.addEventListener("resize", updateMobileStickyOffset);
+    function positionMenuPanel() {{
+      if (!menuPanel || !menuToggle) return;
+      const rect = menuToggle.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const panelWidth = Math.min(248, Math.max(196, viewportWidth - 32));
+      const desiredRight = Math.max(16, viewportWidth - rect.right);
+      const desiredTop = Math.max(16, rect.top - 6);
+      menuPanel.style.right = `${{desiredRight}}px`;
+      menuPanel.style.left = "auto";
+      menuPanel.style.top = `${{desiredTop}}px`;
+      menuPanel.style.width = `${{panelWidth}}px`;
+    }}
+
+    window.addEventListener("resize", () => {{
+      updateMobileStickyOffset();
+      if (menuPanel.classList.contains("is-open")) {{
+        positionMenuPanel();
+      }}
+    }});
     document.addEventListener("visibilitychange", () => {{
       if (!document.hidden) {{
         refreshSharedState();
@@ -1871,6 +1889,9 @@ def render_html(
 
     menuToggle.addEventListener("click", (event) => {{
       event.stopPropagation();
+      if (!menuPanel.classList.contains("is-open")) {{
+        positionMenuPanel();
+      }}
       menuPanel.classList.toggle("is-open");
     }});
 
