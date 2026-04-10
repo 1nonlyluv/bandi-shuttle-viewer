@@ -16,7 +16,7 @@ from shuttle_schedule_parser import parse_schedule, parse_schedule_workbook
 
 
 DEFAULT_ADMIN_LABEL = "지정 관리자"
-DEFAULT_ADMIN_PIN = "2468"
+DEFAULT_ADMIN_PIN = "0066"
 SCHEDULE_JSON_PATH = Path(__file__).resolve().parent.parent / "src" / "data" / "generated" / "schedule.json"
 DRIVER_POSITIONS = {"요양보호사", "사무원", "대표"}
 COMPANION_POSITIONS = {"요양보호사", "요양팀장", "사회복지사"}
