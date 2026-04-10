@@ -525,7 +525,7 @@ def render_html(
     .menu-panel.is-open {{ display: grid; gap: 6px; }}
     .menu-item {{
       min-height: 40px; padding: 0 12px; border: 1px solid transparent; border-radius: 12px;
-      background: transparent; color: inherit; text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; cursor: pointer;
+      background: transparent; color: inherit; text-decoration: none; font-weight: 700; font-size: 0.96rem; display: inline-flex; align-items: center; cursor: pointer;
     }}
     .menu-item:hover {{ background: rgba(143,115,92,0.08); border-color: var(--line); }}
     .chip-button, .nav-link, .ghost-button, .schedule-link, .self-card, .modal-close, .primary-button, .danger-button, .inline-button {{
@@ -663,12 +663,13 @@ def render_html(
       .toolbar-group:last-child {{ gap: 8px; }}
       .header-menu {{ align-self: auto; }}
       .menu-panel {{
-        top: calc(100% + 8px);
+        top: -6px;
         right: 0;
         left: auto;
         min-width: 188px;
         max-width: min(240px, calc(100vw - 52px));
       }}
+      .menu-item {{ font-size: 1.05rem; }}
       .mobile-side-tabs {{ display: flex; width: 100%; }}
       .transport-section, .vehicle-card, .order-strip-card, .modal-shell {{ border-radius: 26px; }}
       .hero-date-row {{ grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 8px; }}
