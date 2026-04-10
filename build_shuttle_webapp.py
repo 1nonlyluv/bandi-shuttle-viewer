@@ -500,6 +500,7 @@ def render_html(
       display: flex; align-items: center; justify-content: space-between; gap: 18px;
       margin-bottom: 22px; padding: 16px 20px; border-radius: 999px; background: rgba(250,246,240,0.76);
       overflow: visible;
+      isolation: isolate;
       z-index: 40;
     }}
     .brand, .header-actions, .hero-top > *, .toolbar > *, .transport-section > *, .order-strip-card > *, .vehicle-card > *, .self-card > *, .modal-shell > * {{ position: relative; z-index: 1; }}
@@ -509,16 +510,16 @@ def render_html(
       font-family: var(--font-display); letter-spacing: -0.04em;
     }}
     .brand-text {{ font-size: 1.24rem; font-weight: 760; }}
-    .header-actions {{ display: flex; flex-direction: column; align-items: flex-end; gap: 8px; position: relative; }}
-    .header-menu {{ position: relative; }}
+    .header-actions {{ display: flex; flex-direction: column; align-items: flex-end; gap: 8px; position: relative; z-index: 90; }}
+    .header-menu {{ position: relative; display: flex; justify-content: flex-end; }}
     .menu-button {{
       width: 42px; height: 42px; display: grid; place-items: center; padding: 0;
       border: 1px solid var(--line); background: rgba(255,255,255,0.72); color: inherit; border-radius: 999px; cursor: pointer;
       font-size: 1.2rem; font-weight: 800;
     }}
     .menu-panel {{
-      position: absolute; top: calc(100% + 8px); right: 0; min-width: 168px; padding: 8px;
-      border-radius: 18px; border: 1px solid var(--line); background: rgba(252,248,241,0.98);
+      position: absolute; top: 0; right: calc(100% + 10px); min-width: 220px; max-width: min(260px, calc(100vw - 88px)); padding: 8px;
+      border-radius: 18px; border: 1px solid var(--line); background: rgba(252,248,241,1);
       box-shadow: var(--shadow-md); display: none; z-index: 80;
     }}
     .menu-panel.is-open {{ display: grid; gap: 6px; }}
@@ -661,12 +662,18 @@ def render_html(
       .toolbar-group {{ width: 100%; align-items: stretch; }}
       .toolbar-group:last-child {{ gap: 8px; }}
       .header-menu {{ align-self: auto; }}
-      .menu-panel {{ left: 0; right: auto; }}
+      .menu-panel {{
+        top: calc(100% + 8px);
+        right: 0;
+        left: auto;
+        min-width: 188px;
+        max-width: min(240px, calc(100vw - 52px));
+      }}
       .mobile-side-tabs {{ display: flex; width: 100%; }}
       .transport-section, .vehicle-card, .order-strip-card, .modal-shell {{ border-radius: 26px; }}
-      .hero-date-row {{ gap: 10px; }}
+      .hero-date-row {{ grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 8px; }}
       .date-arrow {{ width: 46px; height: 46px; flex-basis: 46px; font-size: 1.2rem; }}
-      .hero-date-display {{ font-size: clamp(2rem, 7vw, 3.2rem); }}
+      .hero-date-display {{ min-width: 0; font-size: clamp(2rem, 7vw, 3.2rem); }}
       .transport-section.mobile-transport {{
         position: relative;
         gap: 14px;
