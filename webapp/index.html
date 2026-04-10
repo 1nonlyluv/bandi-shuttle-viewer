@@ -310,6 +310,7 @@
             <div class="header-menu">
               <button type="button" class="menu-button" id="menu-toggle" aria-label="메뉴">☰</button>
               <div class="menu-panel" id="menu-panel">
+                <button type="button" class="menu-item" id="upload-menu-item" data-action="open-upload" hidden>월별 엑셀 업로드</button>
                 <button type="button" class="menu-item" data-action="open-export" data-kind="original">원본 내보내기</button>
                 <button type="button" class="menu-item" data-action="open-export" data-kind="edited">수정본 내보내기</button>
                 <button type="button" class="menu-item" id="reset-menu-item" data-action="reset-schedule" hidden>수정 초기화</button>
@@ -351,12 +352,15 @@
       driver: ["강현애", "김경애", "김영숙", "김용숙", "박정희", "오주환", "이기찬", "임경호", "정국현", "정문조", "최재영"],
       companion: ["강선진", "강현애", "김경애", "김영숙", "김용숙", "김은비", "김중순", "박정희", "변해미", "신은희", "오주환", "임경호", "정국현", "정문조"],
     };
-    const RESIDENT_NAMES = ["강순연", "강진구", "강형자", "공재학", "김갑숙", "김경래", "김귀순", "김미자", "김백윤", "김시정", "김심순", "김애영", "김영옥", "김영춘", "김일수", "김일순", "김재형", "김중옥", "김진호", "김찬조", "김학순", "김홍숙", "문순남", "문필남", "박간난", "박동훈", "박수암", "박철진", "방금천", "변말임", "변우진", "서영희", "송상근", "송석종", "신양숙", "신용성", "양초자", "염윤자", "예순조", "우석환", "유길자", "유순분", "유재순", "유향연", "윤인자", "이건희", "이경희", "이기본", "이막분", "이명숙", "이복순", "이숙자", "이영남", "이영숙", "이옥수", "이종이", "이효순", "임옥순", "임혜자", "전기화", "전옥선", "전준활", "정기주", "정영숙", "정영애", "정태선", "정현숙", "조모선", "조성희", "조영희", "조정아", "차의로", "최봉학", "최중붕", "편정인", "한봉심", "한상호", "한호석"];
+    let RESIDENT_NAMES = ["강순연", "강진구", "강형자", "공재학", "김갑숙", "김경래", "김귀순", "김미자", "김백윤", "김시정", "김심순", "김애영", "김영옥", "김영춘", "김일수", "김일순", "김재형", "김중옥", "김진호", "김찬조", "김학순", "김홍숙", "문순남", "문필남", "박간난", "박동훈", "박수암", "박철진", "방금천", "변말임", "변우진", "서영희", "송상근", "송석종", "신양숙", "신용성", "양초자", "염윤자", "예순조", "우석환", "유길자", "유순분", "유재순", "유향연", "윤인자", "이건희", "이경희", "이기본", "이막분", "이명숙", "이복순", "이숙자", "이영남", "이영숙", "이옥수", "이종이", "이효순", "임옥순", "임혜자", "전기화", "전옥선", "전준활", "정기주", "정영숙", "정영애", "정태선", "정현숙", "조모선", "조성희", "조영희", "조정아", "차의로", "최봉학", "최중붕", "편정인", "한봉심", "한상호", "한호석"];
     const initialSchedules = JSON.parse(document.getElementById("schedule-data").textContent);
     const API_ENDPOINTS = {
       config: "./api/config",
+      schedules: "./api/schedules",
       overrides: "./api/overrides",
+      upload: "./api/upload",
     };
+    let scheduleStore = initialSchedules;
     const weekdayNames = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
     const topShell = document.getElementById("top-shell");
     const heroDateRow = document.querySelector(".hero-date-row");
@@ -368,6 +372,7 @@
     const adminToolbar = document.getElementById("admin-toolbar");
     const adminToggle = document.getElementById("admin-toggle");
     const resetMenuItem = document.getElementById("reset-menu-item");
+    const uploadMenuItem = document.getElementById("upload-menu-item");
     const residentSearchInput = document.getElementById("resident-search");
     const residentSearchButton = document.getElementById("resident-search-button");
     const residentSuggestions = document.getElementById("resident-suggestions");
@@ -386,8 +391,12 @@
         return new Date(raw + "T12:00:00");
       }
       const todayIso = todayDateKey();
-      if (initialSchedules[todayIso]) {
+      if (scheduleStore[todayIso]) {
         return new Date(todayIso + "T12:00:00");
+      }
+      const availableKeys = Object.keys(scheduleStore).sort();
+      if (availableKeys.length) {
+        return new Date(availableKeys[availableKeys.length - 1] + "T12:00:00");
       }
       return heroDateRow ? new Date(heroDateRow.dataset.baseDate + "T12:00:00") : null;
     }
@@ -408,6 +417,27 @@
 
     function scheduleFingerprint(value) {
       return value ? JSON.stringify(value) : "";
+    }
+
+    function collectResidentNamesFromSchedules(bundle) {
+      const names = new Set();
+      Object.values(bundle || {}).forEach((schedule) => {
+        (schedule.vehicles || []).forEach((vehicle) => {
+          ["pickup_rounds", "dropoff_rounds"].forEach((key) => {
+            (vehicle[key] || []).forEach((roundData) => {
+              (roundData.entries || []).forEach((entry) => {
+                if (entry.name) names.add(entry.name);
+              });
+            });
+          });
+        });
+        ["self_pickup", "self_dropoff"].forEach((key) => {
+          ((schedule[key] || {}).entries || []).forEach((entry) => {
+            if (entry.name) names.add(entry.name);
+          });
+        });
+      });
+      return Array.from(names).sort();
     }
 
     function isValidScheduleData(candidate) {
@@ -432,7 +462,19 @@
     }
 
     function baseScheduleForDate(dateKey = activeDateKey()) {
-      return dateKey ? initialSchedules[dateKey] || null : null;
+      return dateKey ? scheduleStore[dateKey] || null : null;
+    }
+
+    async function fetchRemoteSchedules() {
+      if (!state.backendConfigured) return null;
+      try {
+        const response = await window.fetch(API_ENDPOINTS.schedules, { cache: "no-store" });
+        if (!response.ok) return null;
+        const payload = await response.json();
+        return payload && payload.schedules && typeof payload.schedules === "object" ? payload.schedules : null;
+      } catch (_error) {
+        return null;
+      }
     }
 
     function loadPersistedData(schedule) {
@@ -540,6 +582,15 @@
       if (scheduleFingerprint(nextState) !== scheduleFingerprint(state.data)) {
         state.data = nextState;
         renderApp();
+      }
+    }
+
+    async function refreshScheduleBundle() {
+      if (!state.backendConfigured) return;
+      const remoteSchedules = await fetchRemoteSchedules();
+      if (remoteSchedules && Object.keys(remoteSchedules).length) {
+        scheduleStore = remoteSchedules;
+        RESIDENT_NAMES = collectResidentNamesFromSchedules(scheduleStore);
       }
     }
 
@@ -887,6 +938,7 @@
         `;
         adminToggle.textContent = state.isAdmin ? "관리자 종료" : "관리자 로그인";
         resetMenuItem.hidden = !state.isAdmin;
+        uploadMenuItem.hidden = !state.isAdmin || !state.backendConfigured;
         return;
       }
       appRoot.innerHTML = `
@@ -898,6 +950,7 @@
       `;
       adminToggle.textContent = state.isAdmin ? "관리자 종료" : "관리자 로그인";
       resetMenuItem.hidden = !state.isAdmin;
+      uploadMenuItem.hidden = !state.isAdmin || !state.backendConfigured;
       if (state.activeModal) {
         renderModal();
       }
@@ -991,6 +1044,31 @@
           <div class="modal-content">
             <button type="button" class="schedule-link" data-action="confirm-export" data-kind="${kind}" data-scope="all">전체</button>
             <button type="button" class="schedule-link" data-action="confirm-export" data-kind="${kind}" data-scope="vehicle">호차별</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderUploadModal() {
+      return `
+        <div class="modal-shell narrow">
+          <div class="modal-header">
+            <div><p class="eyebrow">월별 원본 업로드</p><h3>엑셀 파일 반영</h3></div>
+            <button type="button" class="modal-close" data-action="close-dialog">닫기</button>
+          </div>
+          <div class="modal-content">
+            <div class="meta-grid">
+              <div>
+                <span>파일</span>
+                <input id="upload-workbook-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+              </div>
+              <div>
+                <span>업로드한 사람</span>
+                <input id="upload-workbook-by" type="text" placeholder="예: 김은비" />
+              </div>
+            </div>
+            <p class="empty-copy">월별 엑셀을 올리면 같은 달 일정이 DB 원본으로 갱신됩니다.</p>
+            <button type="button" class="primary-button" data-action="submit-upload">업로드</button>
           </div>
         </div>
       `;
@@ -1151,6 +1229,9 @@
       if (state.activeModal.type === "export") {
         appDialog.innerHTML = renderExportModal(state.activeModal.kind);
       }
+      if (state.activeModal.type === "upload") {
+        appDialog.innerHTML = renderUploadModal();
+      }
       if (state.activeModal.type === "resident-search") {
         appDialog.innerHTML = renderResidentSearchModal();
       }
@@ -1196,6 +1277,38 @@
       anchor.download = fileName;
       anchor.click();
       URL.revokeObjectURL(url);
+    }
+
+    async function uploadWorkbookFromModal() {
+      const fileInput = document.getElementById("upload-workbook-file");
+      const uploadedByInput = document.getElementById("upload-workbook-by");
+      const file = fileInput?.files?.[0];
+      if (!file) {
+        window.alert("업로드할 월별 엑셀 파일을 선택해 주세요.");
+        return;
+      }
+      const formData = new FormData();
+      formData.append("workbook", file);
+      formData.append("uploaded_by", uploadedByInput?.value?.trim() || ADMIN_CONFIG.label);
+      const response = await window.fetch(API_ENDPOINTS.upload, {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        window.alert(payload.error || "엑셀 업로드에 실패했습니다.");
+        return;
+      }
+      const payload = await response.json();
+      await refreshScheduleBundle();
+      activeDate = payload.latest_date ? new Date(payload.latest_date + "T12:00:00") : parseActiveDate();
+      await syncScheduleForActiveDate();
+      renderHeroDate();
+      syncDateUrl(true);
+      state.activeModal = null;
+      appDialog.close();
+      renderApp();
+      window.alert(`업로드 반영 완료: ${payload.month_key || "-"} (${payload.updated_dates?.length || 0}일)`);
     }
 
     async function updateAssignmentFromForm(button) {
@@ -1387,6 +1500,11 @@
         menuPanel.classList.remove("is-open");
         renderModal();
       }
+      if (action === "open-upload") {
+        state.activeModal = { type: "upload" };
+        menuPanel.classList.remove("is-open");
+        renderModal();
+      }
       if (action === "reset-schedule") {
         resetMenuItem.click();
       }
@@ -1399,6 +1517,12 @@
       const actionButton = event.target.closest("[data-action]");
       if (actionButton && actionButton.dataset.action === "open-export") {
         state.activeModal = { type: "export", kind: actionButton.dataset.kind };
+        menuPanel.classList.remove("is-open");
+        renderModal();
+        return;
+      }
+      if (actionButton && actionButton.dataset.action === "open-upload") {
+        state.activeModal = { type: "upload" };
         menuPanel.classList.remove("is-open");
         renderModal();
         return;
@@ -1422,6 +1546,10 @@
         downloadExport(button.dataset.kind, button.dataset.scope);
         state.activeModal = null;
         appDialog.close();
+        return;
+      }
+      if (button && button.dataset.action === "submit-upload") {
+        await uploadWorkbookFromModal();
         return;
       }
       if (button && button.dataset.action === "open-search-result") {
@@ -1451,6 +1579,8 @@
 
     async function initializeApp() {
       state.backendConfigured = await fetchBackendConfig();
+      await refreshScheduleBundle();
+      activeDate = parseActiveDate();
       await syncScheduleForActiveDate();
       ensureSharedRefreshLoop();
       renderHeroDate();

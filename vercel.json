@@ -1,5 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "python3 build_for_vercel.py",
-  "outputDirectory": "webapp"
+  "outputDirectory": "webapp",
+  "functions": {
+    "api/**/*.py": {
+      "excludeFiles": "{webapp/**,*.xlsx,**/*.xlsx,__pycache__/**}"
+    }
+  }
 }

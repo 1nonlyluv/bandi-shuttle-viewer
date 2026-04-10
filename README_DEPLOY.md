@@ -28,8 +28,8 @@ Vercel:
 3. 프로젝트 설정은 `vercel.json`이 대신함
 
 주의:
-- 현재는 월별 엑셀을 GitHub 저장소에 반영해서 기본 운행표를 배포합니다.
+- 기본 운행표는 GitHub에 포함된 월별 엑셀로도 빌드되지만, Supabase가 설정되면 DB 원본을 우선 읽습니다.
 - 관리자 수정은 Supabase 환경변수가 설정되어 있으면 공유 저장을 우선 사용합니다.
 - 공유 저장은 `schedule_overrides` 테이블의 `full_schedule` 레코드를 사용합니다.
 - Supabase 스키마는 `supabase_schema.sql`에 있습니다.
-- 월별 엑셀 업로드 API는 다음 단계에서 추가합니다.
+- 관리자 메뉴의 `월별 엑셀 업로드`로 새 월 파일을 올리면 `schedule_days`가 갱신됩니다.

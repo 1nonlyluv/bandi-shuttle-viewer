@@ -730,6 +730,7 @@ def render_html(
             <div class="header-menu">
               <button type="button" class="menu-button" id="menu-toggle" aria-label="메뉴">☰</button>
               <div class="menu-panel" id="menu-panel">
+                <button type="button" class="menu-item" id="upload-menu-item" data-action="open-upload" hidden>월별 엑셀 업로드</button>
                 <button type="button" class="menu-item" data-action="open-export" data-kind="original">원본 내보내기</button>
                 <button type="button" class="menu-item" data-action="open-export" data-kind="edited">수정본 내보내기</button>
                 <button type="button" class="menu-item" id="reset-menu-item" data-action="reset-schedule" hidden>수정 초기화</button>
@@ -771,12 +772,15 @@ def render_html(
       driver: {json.dumps(driver_candidates, ensure_ascii=False)},
       companion: {json.dumps(companion_candidates, ensure_ascii=False)},
     }};
-    const RESIDENT_NAMES = {json.dumps(resident_names, ensure_ascii=False)};
+    let RESIDENT_NAMES = {json.dumps(resident_names, ensure_ascii=False)};
     const initialSchedules = JSON.parse(document.getElementById("schedule-data").textContent);
     const API_ENDPOINTS = {{
       config: "./api/config",
+      schedules: "./api/schedules",
       overrides: "./api/overrides",
+      upload: "./api/upload",
     }};
+    let scheduleStore = initialSchedules;
     const weekdayNames = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
     const topShell = document.getElementById("top-shell");
     const heroDateRow = document.querySelector(".hero-date-row");
@@ -788,6 +792,7 @@ def render_html(
     const adminToolbar = document.getElementById("admin-toolbar");
     const adminToggle = document.getElementById("admin-toggle");
     const resetMenuItem = document.getElementById("reset-menu-item");
+    const uploadMenuItem = document.getElementById("upload-menu-item");
     const residentSearchInput = document.getElementById("resident-search");
     const residentSearchButton = document.getElementById("resident-search-button");
     const residentSuggestions = document.getElementById("resident-suggestions");
@@ -806,8 +811,12 @@ def render_html(
         return new Date(raw + "T12:00:00");
       }}
       const todayIso = todayDateKey();
-      if (initialSchedules[todayIso]) {{
+      if (scheduleStore[todayIso]) {{
         return new Date(todayIso + "T12:00:00");
+      }}
+      const availableKeys = Object.keys(scheduleStore).sort();
+      if (availableKeys.length) {{
+        return new Date(availableKeys[availableKeys.length - 1] + "T12:00:00");
       }}
       return heroDateRow ? new Date(heroDateRow.dataset.baseDate + "T12:00:00") : null;
     }}
@@ -828,6 +837,27 @@ def render_html(
 
     function scheduleFingerprint(value) {{
       return value ? JSON.stringify(value) : "";
+    }}
+
+    function collectResidentNamesFromSchedules(bundle) {{
+      const names = new Set();
+      Object.values(bundle || {{}}).forEach((schedule) => {{
+        (schedule.vehicles || []).forEach((vehicle) => {{
+          ["pickup_rounds", "dropoff_rounds"].forEach((key) => {{
+            (vehicle[key] || []).forEach((roundData) => {{
+              (roundData.entries || []).forEach((entry) => {{
+                if (entry.name) names.add(entry.name);
+              }});
+            }});
+          }});
+        }});
+        ["self_pickup", "self_dropoff"].forEach((key) => {{
+          ((schedule[key] || {{}}).entries || []).forEach((entry) => {{
+            if (entry.name) names.add(entry.name);
+          }});
+        }});
+      }});
+      return Array.from(names).sort();
     }}
 
     function isValidScheduleData(candidate) {{
@@ -852,7 +882,19 @@ def render_html(
     }}
 
     function baseScheduleForDate(dateKey = activeDateKey()) {{
-      return dateKey ? initialSchedules[dateKey] || null : null;
+      return dateKey ? scheduleStore[dateKey] || null : null;
+    }}
+
+    async function fetchRemoteSchedules() {{
+      if (!state.backendConfigured) return null;
+      try {{
+        const response = await window.fetch(API_ENDPOINTS.schedules, {{ cache: "no-store" }});
+        if (!response.ok) return null;
+        const payload = await response.json();
+        return payload && payload.schedules && typeof payload.schedules === "object" ? payload.schedules : null;
+      }} catch (_error) {{
+        return null;
+      }}
     }}
 
     function loadPersistedData(schedule) {{
@@ -960,6 +1002,15 @@ def render_html(
       if (scheduleFingerprint(nextState) !== scheduleFingerprint(state.data)) {{
         state.data = nextState;
         renderApp();
+      }}
+    }}
+
+    async function refreshScheduleBundle() {{
+      if (!state.backendConfigured) return;
+      const remoteSchedules = await fetchRemoteSchedules();
+      if (remoteSchedules && Object.keys(remoteSchedules).length) {{
+        scheduleStore = remoteSchedules;
+        RESIDENT_NAMES = collectResidentNamesFromSchedules(scheduleStore);
       }}
     }}
 
@@ -1307,6 +1358,7 @@ def render_html(
         `;
         adminToggle.textContent = state.isAdmin ? "관리자 종료" : "관리자 로그인";
         resetMenuItem.hidden = !state.isAdmin;
+        uploadMenuItem.hidden = !state.isAdmin || !state.backendConfigured;
         return;
       }}
       appRoot.innerHTML = `
@@ -1318,6 +1370,7 @@ def render_html(
       `;
       adminToggle.textContent = state.isAdmin ? "관리자 종료" : "관리자 로그인";
       resetMenuItem.hidden = !state.isAdmin;
+      uploadMenuItem.hidden = !state.isAdmin || !state.backendConfigured;
       if (state.activeModal) {{
         renderModal();
       }}
@@ -1411,6 +1464,31 @@ def render_html(
           <div class="modal-content">
             <button type="button" class="schedule-link" data-action="confirm-export" data-kind="${{kind}}" data-scope="all">전체</button>
             <button type="button" class="schedule-link" data-action="confirm-export" data-kind="${{kind}}" data-scope="vehicle">호차별</button>
+          </div>
+        </div>
+      `;
+    }}
+
+    function renderUploadModal() {{
+      return `
+        <div class="modal-shell narrow">
+          <div class="modal-header">
+            <div><p class="eyebrow">월별 원본 업로드</p><h3>엑셀 파일 반영</h3></div>
+            <button type="button" class="modal-close" data-action="close-dialog">닫기</button>
+          </div>
+          <div class="modal-content">
+            <div class="meta-grid">
+              <div>
+                <span>파일</span>
+                <input id="upload-workbook-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+              </div>
+              <div>
+                <span>업로드한 사람</span>
+                <input id="upload-workbook-by" type="text" placeholder="예: 김은비" />
+              </div>
+            </div>
+            <p class="empty-copy">월별 엑셀을 올리면 같은 달 일정이 DB 원본으로 갱신됩니다.</p>
+            <button type="button" class="primary-button" data-action="submit-upload">업로드</button>
           </div>
         </div>
       `;
@@ -1571,6 +1649,9 @@ def render_html(
       if (state.activeModal.type === "export") {{
         appDialog.innerHTML = renderExportModal(state.activeModal.kind);
       }}
+      if (state.activeModal.type === "upload") {{
+        appDialog.innerHTML = renderUploadModal();
+      }}
       if (state.activeModal.type === "resident-search") {{
         appDialog.innerHTML = renderResidentSearchModal();
       }}
@@ -1616,6 +1697,38 @@ def render_html(
       anchor.download = fileName;
       anchor.click();
       URL.revokeObjectURL(url);
+    }}
+
+    async function uploadWorkbookFromModal() {{
+      const fileInput = document.getElementById("upload-workbook-file");
+      const uploadedByInput = document.getElementById("upload-workbook-by");
+      const file = fileInput?.files?.[0];
+      if (!file) {{
+        window.alert("업로드할 월별 엑셀 파일을 선택해 주세요.");
+        return;
+      }}
+      const formData = new FormData();
+      formData.append("workbook", file);
+      formData.append("uploaded_by", uploadedByInput?.value?.trim() || ADMIN_CONFIG.label);
+      const response = await window.fetch(API_ENDPOINTS.upload, {{
+        method: "POST",
+        body: formData,
+      }});
+      if (!response.ok) {{
+        const payload = await response.json().catch(() => ({{}}));
+        window.alert(payload.error || "엑셀 업로드에 실패했습니다.");
+        return;
+      }}
+      const payload = await response.json();
+      await refreshScheduleBundle();
+      activeDate = payload.latest_date ? new Date(payload.latest_date + "T12:00:00") : parseActiveDate();
+      await syncScheduleForActiveDate();
+      renderHeroDate();
+      syncDateUrl(true);
+      state.activeModal = null;
+      appDialog.close();
+      renderApp();
+      window.alert(`업로드 반영 완료: ${{payload.month_key || "-"}} (${{payload.updated_dates?.length || 0}}일)`);
     }}
 
     async function updateAssignmentFromForm(button) {{
@@ -1807,6 +1920,11 @@ def render_html(
         menuPanel.classList.remove("is-open");
         renderModal();
       }}
+      if (action === "open-upload") {{
+        state.activeModal = {{ type: "upload" }};
+        menuPanel.classList.remove("is-open");
+        renderModal();
+      }}
       if (action === "reset-schedule") {{
         resetMenuItem.click();
       }}
@@ -1819,6 +1937,12 @@ def render_html(
       const actionButton = event.target.closest("[data-action]");
       if (actionButton && actionButton.dataset.action === "open-export") {{
         state.activeModal = {{ type: "export", kind: actionButton.dataset.kind }};
+        menuPanel.classList.remove("is-open");
+        renderModal();
+        return;
+      }}
+      if (actionButton && actionButton.dataset.action === "open-upload") {{
+        state.activeModal = {{ type: "upload" }};
         menuPanel.classList.remove("is-open");
         renderModal();
         return;
@@ -1842,6 +1966,10 @@ def render_html(
         downloadExport(button.dataset.kind, button.dataset.scope);
         state.activeModal = null;
         appDialog.close();
+        return;
+      }}
+      if (button && button.dataset.action === "submit-upload") {{
+        await uploadWorkbookFromModal();
         return;
       }}
       if (button && button.dataset.action === "open-search-result") {{
@@ -1871,6 +1999,8 @@ def render_html(
 
     async function initializeApp() {{
       state.backendConfigured = await fetchBackendConfig();
+      await refreshScheduleBundle();
+      activeDate = parseActiveDate();
       await syncScheduleForActiveDate();
       ensureSharedRefreshLoop();
       renderHeroDate();
@@ -1896,6 +2026,13 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     days = schedule_payload["days"]
     month_label = f"{base_date.year}년 {base_date.month}월"
     shuttle_counts = {date_key: parsed["totals"]["pickup"] for date_key, parsed in schedule_bundle.items()}
+    schedule_json = (
+        json.dumps(schedule_bundle, ensure_ascii=False)
+        .replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("</script", "<\\/script")
+    )
     return f"""<!doctype html>
 <html lang="ko">
 <head>
@@ -2132,7 +2269,7 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       <section class="calendar-header">
         <div>
           <p class="eyebrow">월별 셔틀 캘린더</p>
-          <h1>{escape(month_label)}</h1>
+          <h1 id="calendar-title">{escape(month_label)}</h1>
         </div>
         <div class="calendar-controls">
           <select class="month-select" id="month-select"></select>
@@ -2143,7 +2280,14 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       </section>
     </section>
   </main>
+  <script id="calendar-schedules" type="application/json">{schedule_json}</script>
   <script>
+    const API_ENDPOINTS = {{
+      config: "./api/config",
+      schedules: "./api/schedules",
+    }};
+    const initialSchedules = JSON.parse(document.getElementById("calendar-schedules").textContent);
+    let scheduleStore = initialSchedules;
     const calendarData = {{
       months: {json.dumps(months, ensure_ascii=False)},
       days: {json.dumps(days, ensure_ascii=False)},
@@ -2153,7 +2297,70 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     const weekdayNames = ["일", "월", "화", "수", "목", "금", "토"];
     const monthSelect = document.getElementById("month-select");
     const calendarGrid = document.getElementById("calendar-grid");
-    const availableMonthKeys = calendarData.months.map((month) => month.key);
+    const calendarTitle = document.getElementById("calendar-title");
+    function buildCalendarDataFromSchedules(bundle) {{
+      const dateKeys = Object.keys(bundle).sort();
+      if (!dateKeys.length) return null;
+      const months = [];
+      const seenMonths = new Set();
+      const days = [];
+      const shuttleCounts = {{}};
+      for (const dateKey of dateKeys) {{
+        const currentDate = new Date(dateKey + "T12:00:00");
+        const monthKey = dateKey.slice(0, 7);
+        if (!seenMonths.has(monthKey)) {{
+          seenMonths.add(monthKey);
+          months.push({{ key: monthKey, label: `${{currentDate.getFullYear()}}년 ${{currentDate.getMonth() + 1}}월` }});
+        }}
+        days.push({{
+          date: dateKey,
+          isHoliday: false,
+          isSundayClosed: currentDate.getDay() === 0,
+          holidayName: "",
+          remarks: "",
+        }});
+        shuttleCounts[dateKey] = bundle[dateKey]?.totals?.pickup ?? null;
+      }}
+      return {{
+        months,
+        days,
+        shuttleCounts,
+        baseDate: dateKeys[dateKeys.length - 1],
+      }};
+    }}
+    async function fetchBackendConfig() {{
+      try {{
+        const response = await window.fetch(API_ENDPOINTS.config, {{ cache: "no-store" }});
+        if (!response.ok) return false;
+        const payload = await response.json();
+        return Boolean(payload && payload.configured);
+      }} catch (_error) {{
+        return false;
+      }}
+    }}
+    async function refreshRemoteSchedules() {{
+      const configured = await fetchBackendConfig();
+      if (!configured) return;
+      try {{
+        const response = await window.fetch(API_ENDPOINTS.schedules, {{ cache: "no-store" }});
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (payload && payload.schedules && Object.keys(payload.schedules).length) {{
+          scheduleStore = payload.schedules;
+          const derived = buildCalendarDataFromSchedules(scheduleStore);
+          if (derived) {{
+            calendarData.months = derived.months;
+            calendarData.days = derived.days;
+            calendarData.shuttleCounts = derived.shuttleCounts;
+            calendarData.baseDate = derived.baseDate;
+          }}
+        }}
+      }} catch (_error) {{
+      }}
+    }}
+    function availableMonthKeys() {{
+      return calendarData.months.map((month) => month.key);
+    }}
 
     function currentSearchParams() {{
       return new URLSearchParams(window.location.search);
@@ -2161,10 +2368,10 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
 
     function resolveActiveMonth() {{
       const requested = currentSearchParams().get("month");
-      if (requested && availableMonthKeys.includes(requested)) return requested;
+      if (requested && availableMonthKeys().includes(requested)) return requested;
       const baseMonth = calendarData.baseDate.slice(0, 7);
-      if (availableMonthKeys.includes(baseMonth)) return baseMonth;
-      return availableMonthKeys[0] || baseMonth;
+      if (availableMonthKeys().includes(baseMonth)) return baseMonth;
+      return availableMonthKeys()[0] || baseMonth;
     }}
 
     function resolveSelectedDate(monthKey) {{
@@ -2189,6 +2396,10 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     }}
 
     function renderMonthOptions() {{
+      const activeMonthLabel = calendarData.months.find((month) => month.key === activeMonth)?.label || "{escape(month_label)}";
+      if (calendarTitle) {{
+        calendarTitle.textContent = activeMonthLabel;
+      }}
       monthSelect.innerHTML = calendarData.months
         .map((month) => `<option value="${{month.key}}" ${{month.key === activeMonth ? "selected" : ""}}>${{month.label}}</option>`)
         .join("");
@@ -2259,9 +2470,16 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       }}
     }});
 
-    renderMonthOptions();
-    renderCalendar();
-    syncCalendarUrl(true);
+    async function initializeCalendar() {{
+      await refreshRemoteSchedules();
+      activeMonth = resolveActiveMonth();
+      selectedDate = resolveSelectedDate(activeMonth);
+      renderMonthOptions();
+      renderCalendar();
+      syncCalendarUrl(true);
+    }}
+
+    initializeCalendar();
   </script>
 </body>
 </html>
