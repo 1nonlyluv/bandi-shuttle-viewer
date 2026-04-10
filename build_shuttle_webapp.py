@@ -1837,10 +1837,10 @@ def render_html(
       const rect = menuToggle.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
       const panelWidth = Math.min(248, Math.max(196, viewportWidth - 32));
-      const desiredRight = Math.max(16, viewportWidth - rect.right);
-      const desiredTop = Math.max(16, rect.top - 6);
-      menuPanel.style.right = `${{desiredRight}}px`;
-      menuPanel.style.left = "auto";
+      const desiredLeft = Math.max(16, rect.left - panelWidth - 12);
+      const desiredTop = Math.max(16, rect.top + rect.height / 2);
+      menuPanel.style.left = `${{desiredLeft}}px`;
+      menuPanel.style.right = "auto";
       menuPanel.style.top = `${{desiredTop}}px`;
       menuPanel.style.width = `${{panelWidth}}px`;
     }}
