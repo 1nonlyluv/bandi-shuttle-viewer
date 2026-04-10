@@ -655,8 +655,8 @@ def render_html(
         pointer-events: none;
       }}
       .top-shell > * {{ position: relative; z-index: 1; }}
-      .site-header {{ margin-bottom: 0; padding: 0; border-radius: 0; flex-direction: row; align-items: center; background: transparent; box-shadow: none; border: 0; backdrop-filter: none; }}
-      .hero-top {{ padding: 0; border-radius: 0; background: transparent; box-shadow: none; border: 0; backdrop-filter: none; }}
+      .site-header {{ margin-bottom: 0; padding: 0; border-radius: 0; flex-direction: row; align-items: center; background: transparent; box-shadow: none; border: 0; backdrop-filter: none; z-index: 120; }}
+      .hero-top {{ padding: 0; border-radius: 0; background: transparent; box-shadow: none; border: 0; backdrop-filter: none; z-index: 1; }}
       .toolbar {{ border-radius: 18px; padding: 8px 10px; align-items: center; margin-top: 4px; }}
       .header-actions {{ width: auto; align-items: flex-end; }}
       .toolbar-group {{ width: 100%; align-items: stretch; }}
