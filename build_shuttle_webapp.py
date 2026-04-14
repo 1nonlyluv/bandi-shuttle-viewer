@@ -836,6 +836,19 @@ def render_html(
       return heroDateRow ? new Date(heroDateRow.dataset.baseDate + "T12:00:00") : null;
     }}
 
+    function currentSeoulHour() {{
+      const parts = new Intl.DateTimeFormat("en-CA", {{
+        timeZone: "Asia/Seoul",
+        hour: "2-digit",
+        hour12: false,
+      }}).formatToParts(new Date());
+      return Number(parts.find((part) => part.type === "hour")?.value || "0");
+    }}
+
+    function defaultMobileSide() {{
+      return currentSeoulHour() >= 12 ? "dropoff" : "pickup";
+    }}
+
     function getAdminSessionToken() {{
       try {{
         return window.sessionStorage.getItem("bandi_shuttle_admin_hash") || "";
@@ -861,7 +874,7 @@ def render_html(
       data: null,
       isAdmin: getAdminSessionToken() === ADMIN_CONFIG.pinHash,
       activeModal: null,
-      mobileSide: "pickup",
+      mobileSide: defaultMobileSide(),
       backendConfigured: false,
     }};
     let sharedRefreshHandle = null;
@@ -1777,6 +1790,7 @@ def render_html(
         }}
         await refreshScheduleBundle();
         activeDate = payload.latest_date ? new Date(payload.latest_date + "T12:00:00") : parseActiveDate();
+        state.mobileSide = defaultMobileSide();
         await syncScheduleForActiveDate();
         renderHeroDate();
         syncDateUrl(true);
@@ -1866,6 +1880,7 @@ def render_html(
     heroDateRow.querySelectorAll("[data-shift-date]").forEach((button) => {{
       button.addEventListener("click", async () => {{
         activeDate.setDate(activeDate.getDate() + Number(button.dataset.shiftDate));
+        state.mobileSide = defaultMobileSide();
         renderHeroDate();
         updateMobileStickyOffset();
         syncDateUrl();
@@ -1876,6 +1891,7 @@ def render_html(
 
     window.addEventListener("popstate", async () => {{
       activeDate = parseActiveDate();
+      state.mobileSide = defaultMobileSide();
       renderHeroDate();
       updateMobileStickyOffset();
       await syncScheduleForActiveDate();
@@ -2092,6 +2108,7 @@ def render_html(
       state.backendConfigured = await fetchBackendConfig();
       await refreshScheduleBundle();
       activeDate = parseActiveDate();
+      state.mobileSide = defaultMobileSide();
       await syncScheduleForActiveDate();
       ensureSharedRefreshLoop();
       renderHeroDate();
@@ -2389,6 +2406,29 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     const monthSelect = document.getElementById("month-select");
     const calendarGrid = document.getElementById("calendar-grid");
     const calendarTitle = document.getElementById("calendar-title");
+    function daysInMonth(year, month) {{
+      return new Date(year, month, 0).getDate();
+    }}
+    function buildMonthDays(monthKey, metaByDate, countsByDate) {{
+      const [yearText, monthText] = monthKey.split("-");
+      const year = Number(yearText);
+      const month = Number(monthText);
+      const totalDays = daysInMonth(year, month);
+      const days = [];
+      for (let day = 1; day <= totalDays; day += 1) {{
+        const dateKey = `${{yearText}}-${{String(month).padStart(2, "0")}}-${{String(day).padStart(2, "0")}}`;
+        const currentDate = new Date(dateKey + "T12:00:00");
+        const meta = metaByDate[dateKey] || {{}};
+        days.push({{
+          date: dateKey,
+          isHoliday: Boolean(meta.isHoliday),
+          isSundayClosed: currentDate.getDay() === 0,
+          holidayName: meta.holidayName || "",
+          remarks: meta.remarks || "",
+        }});
+      }}
+      return days;
+    }}
     function buildCalendarDataFromSchedules(bundle) {{
       const dateKeys = Object.keys(bundle).sort();
       if (!dateKeys.length) return null;
@@ -2396,6 +2436,7 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       const seenMonths = new Set();
       const days = [];
       const shuttleCounts = {{}};
+      const metaByDate = Object.fromEntries((calendarData.days || []).map((day) => [day.date, day]));
       for (const dateKey of dateKeys) {{
         const currentDate = new Date(dateKey + "T12:00:00");
         const monthKey = dateKey.slice(0, 7);
@@ -2403,15 +2444,11 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
           seenMonths.add(monthKey);
           months.push({{ key: monthKey, label: `${{currentDate.getFullYear()}}년 ${{currentDate.getMonth() + 1}}월` }});
         }}
-        days.push({{
-          date: dateKey,
-          isHoliday: false,
-          isSundayClosed: currentDate.getDay() === 0,
-          holidayName: "",
-          remarks: "",
-        }});
         shuttleCounts[dateKey] = bundle[dateKey]?.totals?.pickup ?? null;
       }}
+      months.forEach((month) => {{
+        days.push(...buildMonthDays(month.key, metaByDate, shuttleCounts));
+      }});
       return {{
         months,
         days,
@@ -2469,7 +2506,10 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       const requested = currentSearchParams().get("date");
       const monthDays = calendarData.days.filter((day) => day.date.startsWith(monthKey));
       if (requested && monthDays.some((day) => day.date === requested)) return requested;
-      return monthDays.find((day) => !day.isSundayClosed)?.date || monthDays[0]?.date || calendarData.baseDate;
+      return monthDays.find((day) => calendarData.shuttleCounts[day.date] != null)?.date
+        || monthDays.find((day) => !day.isSundayClosed)?.date
+        || monthDays[0]?.date
+        || calendarData.baseDate;
     }}
 
     let activeMonth = resolveActiveMonth();
@@ -2529,7 +2569,10 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     monthSelect.addEventListener("change", (event) => {{
       activeMonth = event.target.value;
       const monthDays = calendarData.days.filter((day) => day.date.startsWith(activeMonth));
-      selectedDate = monthDays.find((day) => !day.isSundayClosed)?.date || monthDays[0]?.date || selectedDate;
+      selectedDate = monthDays.find((day) => calendarData.shuttleCounts[day.date] != null)?.date
+        || monthDays.find((day) => !day.isSundayClosed)?.date
+        || monthDays[0]?.date
+        || selectedDate;
       renderCalendar();
       syncCalendarUrl();
     }});

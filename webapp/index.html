@@ -416,6 +416,19 @@
       return heroDateRow ? new Date(heroDateRow.dataset.baseDate + "T12:00:00") : null;
     }
 
+    function currentSeoulHour() {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Seoul",
+        hour: "2-digit",
+        hour12: false,
+      }).formatToParts(new Date());
+      return Number(parts.find((part) => part.type === "hour")?.value || "0");
+    }
+
+    function defaultMobileSide() {
+      return currentSeoulHour() >= 12 ? "dropoff" : "pickup";
+    }
+
     function getAdminSessionToken() {
       try {
         return window.sessionStorage.getItem("bandi_shuttle_admin_hash") || "";
@@ -441,7 +454,7 @@
       data: null,
       isAdmin: getAdminSessionToken() === ADMIN_CONFIG.pinHash,
       activeModal: null,
-      mobileSide: "pickup",
+      mobileSide: defaultMobileSide(),
       backendConfigured: false,
     };
     let sharedRefreshHandle = null;
@@ -1359,6 +1372,7 @@ ${reason}`);
         }
         await refreshScheduleBundle();
         activeDate = payload.latest_date ? new Date(payload.latest_date + "T12:00:00") : parseActiveDate();
+        state.mobileSide = defaultMobileSide();
         await syncScheduleForActiveDate();
         renderHeroDate();
         syncDateUrl(true);
@@ -1450,6 +1464,7 @@ ${error?.message || "네트워크 연결 또는 서버 응답을 확인해 주�
     heroDateRow.querySelectorAll("[data-shift-date]").forEach((button) => {
       button.addEventListener("click", async () => {
         activeDate.setDate(activeDate.getDate() + Number(button.dataset.shiftDate));
+        state.mobileSide = defaultMobileSide();
         renderHeroDate();
         updateMobileStickyOffset();
         syncDateUrl();
@@ -1460,6 +1475,7 @@ ${error?.message || "네트워크 연결 또는 서버 응답을 확인해 주�
 
     window.addEventListener("popstate", async () => {
       activeDate = parseActiveDate();
+      state.mobileSide = defaultMobileSide();
       renderHeroDate();
       updateMobileStickyOffset();
       await syncScheduleForActiveDate();
@@ -1676,6 +1692,7 @@ ${error?.message || "네트워크 연결 또는 서버 응답을 확인해 주�
       state.backendConfigured = await fetchBackendConfig();
       await refreshScheduleBundle();
       activeDate = parseActiveDate();
+      state.mobileSide = defaultMobileSide();
       await syncScheduleForActiveDate();
       ensureSharedRefreshLoop();
       renderHeroDate();
