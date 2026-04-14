@@ -772,7 +772,7 @@ def render_html(
     </section>
   </main>
   <div class="menu-panel" id="menu-panel">
-    <button type="button" class="menu-item" id="upload-menu-item" data-action="open-upload" hidden>월별 엑셀 업로드</button>
+    <button type="button" class="menu-item" id="upload-menu-item" data-action="open-upload" hidden>엑셀 업로드</button>
     <button type="button" class="menu-item" data-action="open-export" data-kind="original">원본 내보내기</button>
     <button type="button" class="menu-item" data-action="open-export" data-kind="edited">수정본 내보내기</button>
     <button type="button" class="menu-item" id="reset-menu-item" data-action="reset-schedule" hidden>수정 초기화</button>
@@ -835,10 +835,30 @@ def render_html(
       return heroDateRow ? new Date(heroDateRow.dataset.baseDate + "T12:00:00") : null;
     }}
 
+    function getAdminSessionToken() {{
+      try {{
+        return window.sessionStorage.getItem("bandi_shuttle_admin_hash") || "";
+      }} catch (error) {{
+        return "";
+      }}
+    }}
+
+    function setAdminSessionToken(value) {{
+      try {{
+        if (value) {{
+          window.sessionStorage.setItem("bandi_shuttle_admin_hash", value);
+        }} else {{
+          window.sessionStorage.removeItem("bandi_shuttle_admin_hash");
+        }}
+      }} catch (error) {{
+        // Ignore storage access failures and keep admin mode in-memory only.
+      }}
+    }}
+
     let activeDate = parseActiveDate();
     let state = {{
       data: null,
-      isAdmin: false,
+      isAdmin: getAdminSessionToken() === ADMIN_CONFIG.pinHash,
       activeModal: null,
       mobileSide: "pickup",
       backendConfigured: false,
@@ -1487,7 +1507,7 @@ def render_html(
       return `
         <div class="modal-shell narrow">
           <div class="modal-header">
-            <div><p class="eyebrow">월별 원본 업로드</p><h3>엑셀 파일 반영</h3></div>
+            <div><p class="eyebrow">엑셀 업로드</p><h3>엑셀 파일 반영</h3></div>
             <button type="button" class="modal-close" data-action="close-dialog">닫기</button>
           </div>
           <div class="modal-content">
@@ -1714,6 +1734,14 @@ def render_html(
     }}
 
     async function uploadWorkbookFromModal() {{
+      if (!state.isAdmin) {{
+        window.alert("관리자 로그인 후 업로드할 수 있습니다.");
+        return;
+      }}
+      if (!state.backendConfigured) {{
+        window.alert("업로드 서버 설정이 아직 완료되지 않았습니다.");
+        return;
+      }}
       const fileInput = document.getElementById("upload-workbook-file");
       const uploadedByInput = document.getElementById("upload-workbook-by");
       const file = fileInput?.files?.[0];
@@ -1724,25 +1752,40 @@ def render_html(
       const formData = new FormData();
       formData.append("workbook", file);
       formData.append("uploaded_by", uploadedByInput?.value?.trim() || ADMIN_CONFIG.label);
-      const response = await window.fetch(API_ENDPOINTS.upload, {{
-        method: "POST",
-        body: formData,
-      }});
-      if (!response.ok) {{
-        const payload = await response.json().catch(() => ({{}}));
-        window.alert(payload.error || "엑셀 업로드에 실패했습니다.");
-        return;
+      try {{
+        const response = await window.fetch(API_ENDPOINTS.upload, {{
+          method: "POST",
+          headers: {{
+            "X-Bandi-Admin-Hash": getAdminSessionToken(),
+          }},
+          body: formData,
+        }});
+        const rawText = await response.text();
+        let payload = {{}};
+        if (rawText) {{
+          try {{
+            payload = JSON.parse(rawText);
+          }} catch (error) {{
+            payload = {{ error: rawText.trim() }};
+          }}
+        }}
+        if (!response.ok) {{
+          const reason = payload.error || rawText.trim() || `HTTP ${{response.status}}`;
+          window.alert(`엑셀 업로드에 실패했습니다.\n\n${{reason}}`);
+          return;
+        }}
+        await refreshScheduleBundle();
+        activeDate = payload.latest_date ? new Date(payload.latest_date + "T12:00:00") : parseActiveDate();
+        await syncScheduleForActiveDate();
+        renderHeroDate();
+        syncDateUrl(true);
+        state.activeModal = null;
+        appDialog.close();
+        renderApp();
+        window.alert(`업로드 반영 완료: ${{payload.month_key || "-"}} (${{payload.updated_dates?.length || 0}}일)`);
+      }} catch (error) {{
+        window.alert(`엑셀 업로드에 실패했습니다.\n\n${{error?.message || "네트워크 연결 또는 서버 응답을 확인해 주세요."}}`);
       }}
-      const payload = await response.json();
-      await refreshScheduleBundle();
-      activeDate = payload.latest_date ? new Date(payload.latest_date + "T12:00:00") : parseActiveDate();
-      await syncScheduleForActiveDate();
-      renderHeroDate();
-      syncDateUrl(true);
-      state.activeModal = null;
-      appDialog.close();
-      renderApp();
-      window.alert(`업로드 반영 완료: ${{payload.month_key || "-"}} (${{payload.updated_dates?.length || 0}}일)`);
     }}
 
     async function updateAssignmentFromForm(button) {{
@@ -1877,6 +1920,7 @@ def render_html(
     async function toggleAdminMode() {{
       if (state.isAdmin) {{
         state.isAdmin = false;
+        setAdminSessionToken("");
         menuPanel.classList.remove("is-open");
         renderApp();
         return;
@@ -1889,6 +1933,7 @@ def render_html(
         return;
       }}
       state.isAdmin = true;
+      setAdminSessionToken(ADMIN_CONFIG.pinHash);
       menuPanel.classList.remove("is-open");
       renderApp();
     }}
@@ -1956,6 +2001,11 @@ def render_html(
         renderModal();
       }}
       if (action === "open-upload") {{
+        if (!state.isAdmin) {{
+          menuPanel.classList.remove("is-open");
+          window.alert("관리자 로그인 후 업로드할 수 있습니다.");
+          return;
+        }}
         state.activeModal = {{ type: "upload" }};
         menuPanel.classList.remove("is-open");
         renderModal();
@@ -1977,6 +2027,11 @@ def render_html(
         return;
       }}
       if (actionButton && actionButton.dataset.action === "open-upload") {{
+        if (!state.isAdmin) {{
+          menuPanel.classList.remove("is-open");
+          window.alert("관리자 로그인 후 업로드할 수 있습니다.");
+          return;
+        }}
         state.activeModal = {{ type: "upload" }};
         menuPanel.classList.remove("is-open");
         renderModal();

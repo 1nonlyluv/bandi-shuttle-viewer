@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import cgi
+import hashlib
 import json
 import os
 import re
@@ -18,13 +19,14 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from build_shuttle_webapp import derive_base_date
+from build_shuttle_webapp import DEFAULT_ADMIN_PIN, derive_base_date
 from shuttle_schedule_parser import parse_schedule_workbook
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "")
+ADMIN_PIN_HASH = os.getenv("ADMIN_PIN_HASH", hashlib.sha256(DEFAULT_ADMIN_PIN.encode("utf-8")).hexdigest())
 
 
 def json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict) -> None:
@@ -63,6 +65,9 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if not (SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY and SUPABASE_BUCKET):
             return json_response(self, 503, {"error": "Supabase environment variables are not configured"})
+        admin_hash = (self.headers.get("x-bandi-admin-hash") or "").strip()
+        if not admin_hash or admin_hash != ADMIN_PIN_HASH:
+            return json_response(self, 403, {"error": "관리자 로그인 후 업로드할 수 있습니다."})
 
         content_type = self.headers.get("content-type", "")
         if "multipart/form-data" not in content_type:
