@@ -105,23 +105,26 @@ class handler(BaseHTTPRequestHandler):
                 if not parsed_sheets:
                     return json_response(self, 400, {"error": "등송영표 탭을 찾지 못했습니다."})
 
-                schedule_rows = []
+                schedule_row_map: dict[str, dict] = {}
                 month_keys: set[str] = set()
                 latest_date = None
+                duplicate_dates: list[str] = []
                 for parsed in parsed_sheets:
                     date_key = derive_base_date(parsed).isoformat()
                     month_key = date_key[:7]
                     month_keys.add(month_key)
                     latest_date = max(latest_date, date_key) if latest_date else date_key
-                    schedule_rows.append(
-                        {
-                            "date_key": date_key,
-                            "month_key": month_key,
-                            "sheet_name": parsed.get("sheet_name"),
-                            "source_file_name": file_name,
-                            "schedule_json": parsed,
-                        }
-                    )
+                    if date_key in schedule_row_map:
+                        duplicate_dates.append(date_key)
+                    schedule_row_map[date_key] = {
+                        "date_key": date_key,
+                        "month_key": month_key,
+                        "sheet_name": parsed.get("sheet_name"),
+                        "source_file_name": file_name,
+                        "schedule_json": parsed,
+                    }
+
+                schedule_rows = [schedule_row_map[key] for key in sorted(schedule_row_map)]
 
                 primary_month_key = sorted(month_keys)[-1]
                 upload_storage_path = storage_path_for(primary_month_key, file_name)
@@ -176,12 +179,12 @@ class handler(BaseHTTPRequestHandler):
                     row["source_upload_id"] = upload_id
 
                 status, body = supabase_request(
-                    "/rest/v1/schedule_days",
+                    "/rest/v1/schedule_days?on_conflict=date_key",
                     method="POST",
                     payload=json.dumps(schedule_rows, ensure_ascii=False).encode("utf-8"),
                     headers={
                         "Content-Type": "application/json",
-                        "Prefer": "return=representation",
+                        "Prefer": "resolution=merge-duplicates,return=representation",
                     },
                 )
                 if status >= 400:
@@ -196,6 +199,7 @@ class handler(BaseHTTPRequestHandler):
                         "latest_date": latest_date,
                         "updated_dates": [row["date_key"] for row in schedule_rows],
                         "source_file_name": file_name,
+                        "collapsed_duplicate_dates": sorted(set(duplicate_dates)),
                     },
                 )
             finally:
