@@ -2393,11 +2393,11 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     .weekday-chip.is-sunday {{ color: #8a7278; }}
     .weekday-chip.is-special {{ color: #8a7278; }}
     .day-card {{
-      min-height: 178px;
+      min-height: 156px;
       padding: 16px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       border: 1px solid rgba(49, 53, 60, 0.08);
       border-radius: 20px;
       background: #fbf7f0;
@@ -2430,6 +2430,8 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     .day-card.special-day .day-meta {{ color: #8a7278; }}
     .day-card.special-day .day-note {{ color: #8a7278; }}
     .day-number {{
+      display: block;
+      text-align: center;
       font-family: var(--font-display);
       font-size: 1.68rem;
       font-weight: 660;
@@ -2464,7 +2466,7 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       .calendar-header {{ flex-direction: column; align-items: flex-start; }}
       .calendar-grid {{ gap: 8px; }}
       .weekday-chip {{ min-height: 34px; font-size: 0.72rem; }}
-      .day-card {{ min-height: 116px; padding: 10px; border-radius: 16px; }}
+      .day-card {{ min-height: 102px; padding: 10px; border-radius: 16px; }}
       .day-number {{ font-size: 1.1rem; }}
       .day-number small {{ display: block; margin: 4px 0 0; font-size: 0.7rem; }}
       .day-meta {{ font-size: 0.74rem; }}
@@ -2699,7 +2701,6 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       const dayCards = days
         .map((day) => {{
           const currentDate = new Date(day.date + "T12:00:00");
-          const weekday = weekdayNames[currentDate.getDay()];
           const isSpecial = day.isHoliday || day.isSundayClosed || Boolean(day.holidayName) || (day.remarks || "").includes("노동절");
           const count = calendarData.shuttleCounts[day.date];
           const note = day.holidayName || day.remarks || "\\u00A0";
@@ -2709,7 +2710,7 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
               class="day-card ${{day.isSundayClosed ? "closed" : ""}} ${{isSpecial ? "special-day" : ""}} ${{selectedDate === day.date ? "selected" : ""}}"
               data-date="${{day.date}}"
             >
-              <span class="day-number">${{currentDate.getDate()}} <small>${{weekday}}</small></span>
+              <span class="day-number">${{currentDate.getDate()}}</span>
               <span class="day-meta">${{count != null ? `등영 인원 ${{count}}명` : "등영 인원 -"}}</span>
               <span class="day-note ${{note.trim() ? "" : "empty"}}">${{note}}</span>
             </button>
