@@ -787,15 +787,44 @@ def render_html(
       driver: {json.dumps(driver_candidates, ensure_ascii=False)},
       companion: {json.dumps(companion_candidates, ensure_ascii=False)},
     }};
-    let RESIDENT_NAMES = {json.dumps(resident_names, ensure_ascii=False)};
     const initialSchedules = JSON.parse(document.getElementById("schedule-data").textContent);
+    const SCHEDULE_BUNDLE_CACHE_KEY = "bandi_shuttle_schedule_bundle_cache_v1";
     const API_ENDPOINTS = {{
       config: "./api/config",
       schedules: "./api/schedules",
       overrides: "./api/overrides",
       upload: "./api/upload",
     }};
-    let scheduleStore = initialSchedules;
+    function isValidScheduleBundle(candidate) {{
+      return Boolean(
+        candidate &&
+        typeof candidate === "object" &&
+        !Array.isArray(candidate) &&
+        Object.values(candidate).every((value) => isValidScheduleData(value))
+      );
+    }}
+
+    function loadCachedScheduleBundle() {{
+      try {{
+        const raw = window.localStorage.getItem(SCHEDULE_BUNDLE_CACHE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return isValidScheduleBundle(parsed) ? parsed : null;
+      }} catch (_error) {{
+        return null;
+      }}
+    }}
+
+    function persistScheduleBundleCache(bundle) {{
+      try {{
+        if (!isValidScheduleBundle(bundle)) return;
+        window.localStorage.setItem(SCHEDULE_BUNDLE_CACHE_KEY, JSON.stringify(bundle));
+      }} catch (_error) {{
+      }}
+    }}
+
+    let scheduleStore = loadCachedScheduleBundle() || initialSchedules;
+    let RESIDENT_NAMES = collectResidentNamesFromSchedules(scheduleStore);
     const weekdayNames = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
     const topShell = document.getElementById("top-shell");
     const heroDateRow = document.querySelector(".hero-date-row");
@@ -873,6 +902,7 @@ def render_html(
       activeModal: null,
       mobileSide: defaultMobileSide(),
       backendConfigured: false,
+      remoteBootstrapping: true,
     }};
     let sharedRefreshHandle = null;
 
@@ -1055,6 +1085,7 @@ def render_html(
       const remoteSchedules = await fetchRemoteSchedules();
       if (remoteSchedules && Object.keys(remoteSchedules).length) {{
         scheduleStore = remoteSchedules;
+        persistScheduleBundleCache(scheduleStore);
         RESIDENT_NAMES = collectResidentNamesFromSchedules(scheduleStore);
       }}
     }}
@@ -1380,6 +1411,7 @@ def render_html(
 
     function renderApp() {{
       if (!state.data) {{
+        const isLoading = state.remoteBootstrapping;
         appRoot.innerHTML = `
           <div class="mobile-only">
             <section class="transport-section">
@@ -1388,17 +1420,17 @@ def render_html(
                 <button type="button" class="mobile-side-tab" data-action="set-mobile-side" data-side="dropoff">송영</button>
               </div>
               <div class="section-heading">
-                <div><p class="eyebrow">No Schedule</p><h2>운행표 없음</h2></div>
+                <div><p class="eyebrow">${{isLoading ? "Loading" : "No Schedule"}}</p><h2>${{isLoading ? "운행표 불러오는 중" : "운행표 없음"}}</h2></div>
               </div>
-              <p class="empty-copy">선택한 날짜의 셔틀 운행표 데이터가 없습니다.</p>
+              <p class="empty-copy">${{isLoading ? "최신 운행표를 확인하고 있습니다." : "선택한 날짜의 셔틀 운행표 데이터가 없습니다."}}</p>
             </section>
           </div>
           <div class="desktop-only">
             <section class="transport-section">
               <div class="section-heading">
-                <div><p class="eyebrow">No Schedule</p><h2>운행표 없음</h2></div>
+                <div><p class="eyebrow">${{isLoading ? "Loading" : "No Schedule"}}</p><h2>${{isLoading ? "운행표 불러오는 중" : "운행표 없음"}}</h2></div>
               </div>
-              <p class="empty-copy">선택한 날짜의 셔틀 운행표 데이터가 없습니다.</p>
+              <p class="empty-copy">${{isLoading ? "최신 운행표를 확인하고 있습니다." : "선택한 날짜의 셔틀 운행표 데이터가 없습니다."}}</p>
             </section>
           </div>
         `;
@@ -2114,10 +2146,13 @@ def render_html(
       state.backendConfigured = await fetchBackendConfig();
       ensureSharedRefreshLoop();
       if (!state.backendConfigured) {{
+        state.remoteBootstrapping = false;
+        renderApp();
         return;
       }}
       await refreshScheduleBundle();
       await syncScheduleForActiveDate();
+      state.remoteBootstrapping = false;
       renderHeroDate();
       updateMobileStickyOffset();
       syncDateUrl(true);
