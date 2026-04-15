@@ -252,8 +252,8 @@
       schedules: "./api/schedules",
     };
     const initialSchedules = JSON.parse(document.getElementById("calendar-schedules").textContent);
-    let scheduleStore = initialSchedules;
-    const calendarData = {
+    const SCHEDULE_BUNDLE_CACHE_KEY = "bandi_shuttle_schedule_bundle_cache_v1";
+    const initialCalendarSeed = {
       months: [{"key": "2026-04", "label": "2026년 4월"}],
       days: [{"date": "2026-04-01", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-02", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-03", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-04", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-05", "isSundayClosed": true, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-06", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-07", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-08", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-09", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-10", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-11", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-12", "isSundayClosed": true, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-13", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-14", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-15", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-16", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-17", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-18", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-19", "isSundayClosed": true, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-20", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-21", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-22", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-23", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-24", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-25", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-26", "isSundayClosed": true, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-27", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-28", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-29", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}, {"date": "2026-04-30", "isSundayClosed": false, "isHoliday": false, "holidayName": "", "remarks": ""}],
       shuttleCounts: {"2026-03-19": 55, "2026-03-20": 60, "2026-03-21": 25, "2026-03-23": 64, "2026-03-24": 52, "2026-03-25": 56, "2026-03-27": 64, "2026-03-30": 61, "2026-03-31": 56, "2026-04-01": 60, "2026-04-02": 54, "2026-04-03": 63, "2026-04-04": 22, "2026-04-06": 66, "2026-04-07": 56, "2026-04-08": 58, "2026-04-09": 55, "2026-04-10": 63},
@@ -263,10 +263,47 @@
     const monthSelect = document.getElementById("month-select");
     const calendarGrid = document.getElementById("calendar-grid");
     const calendarTitle = document.getElementById("calendar-title");
+    function isValidScheduleData(candidate) {
+      return Boolean(
+        candidate &&
+        Array.isArray(candidate.vehicles) &&
+        candidate.self_pickup &&
+        Array.isArray(candidate.self_pickup.entries) &&
+        candidate.self_dropoff &&
+        Array.isArray(candidate.self_dropoff.entries) &&
+        candidate.home &&
+        Array.isArray(candidate.home.dropoff_order_cards)
+      );
+    }
+    function isValidScheduleBundle(candidate) {
+      return Boolean(
+        candidate &&
+        typeof candidate === "object" &&
+        !Array.isArray(candidate) &&
+        Object.values(candidate).every((value) => isValidScheduleData(value))
+      );
+    }
+    function loadCachedScheduleBundle() {
+      try {
+        const raw = window.localStorage.getItem(SCHEDULE_BUNDLE_CACHE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return isValidScheduleBundle(parsed) ? parsed : null;
+      } catch (_error) {
+        return null;
+      }
+    }
+    function persistScheduleBundleCache(bundle) {
+      try {
+        if (!isValidScheduleBundle(bundle)) return;
+        window.localStorage.setItem(SCHEDULE_BUNDLE_CACHE_KEY, JSON.stringify(bundle));
+      } catch (_error) {
+      }
+    }
     function daysInMonth(year, month) {
       return new Date(year, month, 0).getDate();
     }
-    function buildMonthDays(monthKey, metaByDate, countsByDate) {
+    function buildMonthDays(monthKey, metaByDate) {
       const [yearText, monthText] = monthKey.split("-");
       const year = Number(yearText);
       const month = Number(monthText);
@@ -286,14 +323,14 @@
       }
       return days;
     }
-    function buildCalendarDataFromSchedules(bundle) {
+    function buildCalendarDataFromSchedules(bundle, fallbackDays = []) {
       const dateKeys = Object.keys(bundle).sort();
       if (!dateKeys.length) return null;
       const months = [];
       const seenMonths = new Set();
       const days = [];
       const shuttleCounts = {};
-      const metaByDate = Object.fromEntries((calendarData.days || []).map((day) => [day.date, day]));
+      const metaByDate = Object.fromEntries((fallbackDays || []).map((day) => [day.date, day]));
       for (const dateKey of dateKeys) {
         const currentDate = new Date(dateKey + "T12:00:00");
         const monthKey = dateKey.slice(0, 7);
@@ -304,7 +341,7 @@
         shuttleCounts[dateKey] = bundle[dateKey]?.totals?.pickup ?? null;
       }
       months.forEach((month) => {
-        days.push(...buildMonthDays(month.key, metaByDate, shuttleCounts));
+        days.push(...buildMonthDays(month.key, metaByDate));
       });
       return {
         months,
@@ -313,6 +350,8 @@
         baseDate: dateKeys[dateKeys.length - 1],
       };
     }
+    let scheduleStore = loadCachedScheduleBundle() || initialSchedules;
+    const calendarData = buildCalendarDataFromSchedules(scheduleStore, initialCalendarSeed.days) || initialCalendarSeed;
     async function fetchBackendConfig() {
       try {
         const response = await window.fetch(API_ENDPOINTS.config, { cache: "no-store" });
@@ -332,7 +371,8 @@
         const payload = await response.json();
         if (payload && payload.schedules && Object.keys(payload.schedules).length) {
           scheduleStore = payload.schedules;
-          const derived = buildCalendarDataFromSchedules(scheduleStore);
+          persistScheduleBundleCache(scheduleStore);
+          const derived = buildCalendarDataFromSchedules(scheduleStore, calendarData.days);
           if (derived) {
             calendarData.months = derived.months;
             calendarData.days = derived.days;
@@ -462,6 +502,11 @@
     });
 
     async function initializeCalendar() {
+      activeMonth = resolveActiveMonth();
+      selectedDate = resolveSelectedDate(activeMonth);
+      renderMonthOptions();
+      renderCalendar();
+      syncCalendarUrl(true);
       await refreshRemoteSchedules();
       activeMonth = resolveActiveMonth();
       selectedDate = resolveSelectedDate(activeMonth);

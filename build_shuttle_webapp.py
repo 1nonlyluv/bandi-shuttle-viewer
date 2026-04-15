@@ -2437,8 +2437,8 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       schedules: "./api/schedules",
     }};
     const initialSchedules = JSON.parse(document.getElementById("calendar-schedules").textContent);
-    let scheduleStore = initialSchedules;
-    const calendarData = {{
+    const SCHEDULE_BUNDLE_CACHE_KEY = "bandi_shuttle_schedule_bundle_cache_v1";
+    const initialCalendarSeed = {{
       months: {json.dumps(months, ensure_ascii=False)},
       days: {json.dumps(days, ensure_ascii=False)},
       shuttleCounts: {json.dumps(shuttle_counts, ensure_ascii=False)},
@@ -2448,10 +2448,47 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     const monthSelect = document.getElementById("month-select");
     const calendarGrid = document.getElementById("calendar-grid");
     const calendarTitle = document.getElementById("calendar-title");
+    function isValidScheduleData(candidate) {{
+      return Boolean(
+        candidate &&
+        Array.isArray(candidate.vehicles) &&
+        candidate.self_pickup &&
+        Array.isArray(candidate.self_pickup.entries) &&
+        candidate.self_dropoff &&
+        Array.isArray(candidate.self_dropoff.entries) &&
+        candidate.home &&
+        Array.isArray(candidate.home.dropoff_order_cards)
+      );
+    }}
+    function isValidScheduleBundle(candidate) {{
+      return Boolean(
+        candidate &&
+        typeof candidate === "object" &&
+        !Array.isArray(candidate) &&
+        Object.values(candidate).every((value) => isValidScheduleData(value))
+      );
+    }}
+    function loadCachedScheduleBundle() {{
+      try {{
+        const raw = window.localStorage.getItem(SCHEDULE_BUNDLE_CACHE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return isValidScheduleBundle(parsed) ? parsed : null;
+      }} catch (_error) {{
+        return null;
+      }}
+    }}
+    function persistScheduleBundleCache(bundle) {{
+      try {{
+        if (!isValidScheduleBundle(bundle)) return;
+        window.localStorage.setItem(SCHEDULE_BUNDLE_CACHE_KEY, JSON.stringify(bundle));
+      }} catch (_error) {{
+      }}
+    }}
     function daysInMonth(year, month) {{
       return new Date(year, month, 0).getDate();
     }}
-    function buildMonthDays(monthKey, metaByDate, countsByDate) {{
+    function buildMonthDays(monthKey, metaByDate) {{
       const [yearText, monthText] = monthKey.split("-");
       const year = Number(yearText);
       const month = Number(monthText);
@@ -2471,14 +2508,14 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       }}
       return days;
     }}
-    function buildCalendarDataFromSchedules(bundle) {{
+    function buildCalendarDataFromSchedules(bundle, fallbackDays = []) {{
       const dateKeys = Object.keys(bundle).sort();
       if (!dateKeys.length) return null;
       const months = [];
       const seenMonths = new Set();
       const days = [];
       const shuttleCounts = {{}};
-      const metaByDate = Object.fromEntries((calendarData.days || []).map((day) => [day.date, day]));
+      const metaByDate = Object.fromEntries((fallbackDays || []).map((day) => [day.date, day]));
       for (const dateKey of dateKeys) {{
         const currentDate = new Date(dateKey + "T12:00:00");
         const monthKey = dateKey.slice(0, 7);
@@ -2489,7 +2526,7 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
         shuttleCounts[dateKey] = bundle[dateKey]?.totals?.pickup ?? null;
       }}
       months.forEach((month) => {{
-        days.push(...buildMonthDays(month.key, metaByDate, shuttleCounts));
+        days.push(...buildMonthDays(month.key, metaByDate));
       }});
       return {{
         months,
@@ -2498,6 +2535,8 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
         baseDate: dateKeys[dateKeys.length - 1],
       }};
     }}
+    let scheduleStore = loadCachedScheduleBundle() || initialSchedules;
+    const calendarData = buildCalendarDataFromSchedules(scheduleStore, initialCalendarSeed.days) || initialCalendarSeed;
     async function fetchBackendConfig() {{
       try {{
         const response = await window.fetch(API_ENDPOINTS.config, {{ cache: "no-store" }});
@@ -2517,7 +2556,8 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
         const payload = await response.json();
         if (payload && payload.schedules && Object.keys(payload.schedules).length) {{
           scheduleStore = payload.schedules;
-          const derived = buildCalendarDataFromSchedules(scheduleStore);
+          persistScheduleBundleCache(scheduleStore);
+          const derived = buildCalendarDataFromSchedules(scheduleStore, calendarData.days);
           if (derived) {{
             calendarData.months = derived.months;
             calendarData.days = derived.days;
@@ -2647,6 +2687,11 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     }});
 
     async function initializeCalendar() {{
+      activeMonth = resolveActiveMonth();
+      selectedDate = resolveSelectedDate(activeMonth);
+      renderMonthOptions();
+      renderCalendar();
+      syncCalendarUrl(true);
       await refreshRemoteSchedules();
       activeMonth = resolveActiveMonth();
       selectedDate = resolveSelectedDate(activeMonth);
