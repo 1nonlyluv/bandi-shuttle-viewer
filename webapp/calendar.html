@@ -440,7 +440,7 @@
       selectedDate = card.dataset.date;
       renderCalendar();
       syncCalendarUrl();
-      window.location.href = `./index.html?date=${selectedDate}`;
+      window.location.href = `./index.html?date=${selectedDate}&nav=1`;
     });
 
     window.addEventListener("popstate", () => {

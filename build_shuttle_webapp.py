@@ -820,9 +820,14 @@ def render_html(
       }}).format(new Date());
     }}
     function parseActiveDate() {{
+      const historyDate = window.history.state?.date;
+      if (historyDate && /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(historyDate)) {{
+        return new Date(historyDate + "T12:00:00");
+      }}
       const search = new URLSearchParams(window.location.search);
       const raw = search.get("date");
-      if (raw && /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(raw)) {{
+      const isInternalNavigation = search.get("nav") === "1";
+      if (isInternalNavigation && raw && /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(raw)) {{
         return new Date(raw + "T12:00:00");
       }}
       return new Date(todayDateKey() + "T12:00:00");
@@ -1234,6 +1239,7 @@ def render_html(
       if (!activeDate) return;
       const nextUrl = new URL(window.location.href);
       nextUrl.searchParams.set("date", activeDate.toISOString().slice(0, 10));
+      nextUrl.searchParams.delete("nav");
       if (replace) {{
         window.history.replaceState({{ date: nextUrl.searchParams.get("date") }}, "", nextUrl);
       }} else {{
@@ -2584,7 +2590,7 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       selectedDate = card.dataset.date;
       renderCalendar();
       syncCalendarUrl();
-      window.location.href = `./index.html?date=${{selectedDate}}`;
+      window.location.href = `./index.html?date=${{selectedDate}}&nav=1`;
     }});
 
     window.addEventListener("popstate", () => {{
