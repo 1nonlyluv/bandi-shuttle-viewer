@@ -825,15 +825,7 @@ def render_html(
       if (raw && /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(raw)) {{
         return new Date(raw + "T12:00:00");
       }}
-      const todayIso = todayDateKey();
-      if (scheduleStore[todayIso]) {{
-        return new Date(todayIso + "T12:00:00");
-      }}
-      const availableKeys = Object.keys(scheduleStore).sort();
-      if (availableKeys.length) {{
-        return new Date(availableKeys[availableKeys.length - 1] + "T12:00:00");
-      }}
-      return heroDateRow ? new Date(heroDateRow.dataset.baseDate + "T12:00:00") : null;
+      return new Date(todayDateKey() + "T12:00:00");
     }}
 
     function currentSeoulHour() {{
@@ -1789,7 +1781,7 @@ def render_html(
           return;
         }}
         await refreshScheduleBundle();
-        activeDate = payload.latest_date ? new Date(payload.latest_date + "T12:00:00") : parseActiveDate();
+        activeDate = parseActiveDate();
         state.mobileSide = defaultMobileSide();
         await syncScheduleForActiveDate();
         renderHeroDate();
@@ -2105,12 +2097,21 @@ def render_html(
     }});
 
     async function initializeApp() {{
-      state.backendConfigured = await fetchBackendConfig();
-      await refreshScheduleBundle();
       activeDate = parseActiveDate();
       state.mobileSide = defaultMobileSide();
       await syncScheduleForActiveDate();
+      renderHeroDate();
+      updateMobileStickyOffset();
+      syncDateUrl(true);
+      renderApp();
+
+      state.backendConfigured = await fetchBackendConfig();
       ensureSharedRefreshLoop();
+      if (!state.backendConfigured) {{
+        return;
+      }}
+      await refreshScheduleBundle();
+      await syncScheduleForActiveDate();
       renderHeroDate();
       updateMobileStickyOffset();
       syncDateUrl(true);
