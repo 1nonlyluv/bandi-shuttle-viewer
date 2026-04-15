@@ -44,6 +44,27 @@ DEFAULT_STAFF_ROSTER = [
     {"name": "최재영", "position": "대표"},
 ]
 
+FIXED_SPECIAL_DAYS = {
+    "01-01": "신정",
+    "03-01": "삼일절",
+    "05-01": "노동절",
+    "05-05": "어린이날",
+    "06-06": "현충일",
+    "08-15": "광복절",
+    "10-03": "개천절",
+    "10-09": "한글날",
+    "12-25": "성탄절",
+}
+
+SUBSTITUTE_ELIGIBLE_FIXED_DAYS = {
+    "03-01",
+    "05-05",
+    "08-15",
+    "10-03",
+    "10-09",
+    "12-25",
+}
+
 
 def dialog_id(prefix: str, vehicle_name: str) -> str:
     return f"{prefix}-{vehicle_name.replace('호차', '')}"
@@ -95,11 +116,52 @@ def load_staff_roster() -> list[dict[str, str]]:
     return sorted(seen.values(), key=lambda item: item["name"]) or DEFAULT_STAFF_ROSTER
 
 
+def supplement_calendar_special_days(days: list[dict[str, object]]) -> list[dict[str, object]]:
+    indexed: dict[str, dict[str, object]] = {str(day.get("date")): dict(day) for day in days if day.get("date")}
+
+    def ensure_day(current: date) -> dict[str, object]:
+        key = current.isoformat()
+        if key not in indexed:
+            indexed[key] = {
+                "date": key,
+                "isSundayClosed": current.weekday() == 6,
+                "isHoliday": False,
+                "holidayName": "",
+                "remarks": "",
+            }
+        return indexed[key]
+
+    def apply_holiday(current: date, label: str, *, substitute: bool = False) -> None:
+        day = ensure_day(current)
+        day["isHoliday"] = True
+        if substitute:
+            day["holidayName"] = "대체공휴일"
+        elif not str(day.get("holidayName") or "").strip():
+            day["holidayName"] = label
+
+    years = sorted({date.fromisoformat(key).year for key in indexed})
+    for year in years:
+        for month_day, label in FIXED_SPECIAL_DAYS.items():
+            month, day = map(int, month_day.split("-"))
+            holiday_date = date(year, month, day)
+            apply_holiday(holiday_date, label)
+            if month_day in SUBSTITUTE_ELIGIBLE_FIXED_DAYS and holiday_date.weekday() >= 5:
+                observed = holiday_date + timedelta(days=(7 - holiday_date.weekday()))
+                while observed.isoformat() in indexed and (
+                    bool(indexed[observed.isoformat()].get("isHoliday")) or bool(indexed[observed.isoformat()].get("isSundayClosed"))
+                ):
+                    observed += timedelta(days=1)
+                apply_holiday(observed, label, substitute=True)
+
+    return [indexed[key] for key in sorted(indexed)]
+
+
 def load_schedule_calendar_payload(base_date: date) -> dict[str, object]:
     if SCHEDULE_JSON_PATH.exists():
         try:
             payload = json.loads(SCHEDULE_JSON_PATH.read_text(encoding="utf-8"))
             if isinstance(payload, dict) and isinstance(payload.get("months"), list) and isinstance(payload.get("days"), list):
+                payload["days"] = supplement_calendar_special_days(list(payload["days"]))
                 return payload
         except (OSError, json.JSONDecodeError):
             pass
@@ -118,6 +180,7 @@ def load_schedule_calendar_payload(base_date: date) -> dict[str, object]:
                 "remarks": "",
             }
         )
+    days = supplement_calendar_special_days(days)
     return {
         "months": [{"key": month_key, "label": f"{base_date.year}년 {base_date.month}월"}],
         "days": days,
