@@ -2328,6 +2328,7 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       color: #6f747d;
     }}
     .weekday-chip.is-sunday {{ color: #8a7278; }}
+    .weekday-chip.is-special {{ color: #8a7278; }}
     .day-card {{
       min-height: 178px;
       padding: 16px;
@@ -2363,6 +2364,8 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     }}
     .day-card.special-day .day-number {{ color: #8a7278; }}
     .day-card.special-day .day-number small {{ color: #988287; }}
+    .day-card.special-day .day-meta {{ color: #8a7278; }}
+    .day-card.special-day .day-note {{ color: #8a7278; }}
     .day-number {{
       font-family: var(--font-display);
       font-size: 1.68rem;
@@ -2620,8 +2623,13 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
 
     function renderCalendar() {{
       const days = calendarData.days.filter((day) => day.date.startsWith(activeMonth));
+      const specialWeekdays = new Set(
+        days
+          .filter((day) => day.isHoliday || day.holidayName || (day.remarks || "").includes("노동절"))
+          .map((day) => new Date(day.date + "T12:00:00").getDay())
+      );
       const weekdayHeader = weekdayNames
-        .map((weekday, index) => `<div class="weekday-chip ${{index === 0 ? "is-sunday" : ""}}">${{weekday}}</div>`)
+        .map((weekday, index) => `<div class="weekday-chip ${{index === 0 ? "is-sunday" : ""}} ${{specialWeekdays.has(index) ? "is-special" : ""}}">${{weekday}}</div>`)
         .join("");
       const firstWeekday = days.length ? new Date(days[0].date + "T12:00:00").getDay() : 0;
       const leadingSlots = Array.from({{ length: firstWeekday }}, () => `<div class="day-card empty-slot" aria-hidden="true"></div>`).join("");
@@ -2629,7 +2637,7 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
         .map((day) => {{
           const currentDate = new Date(day.date + "T12:00:00");
           const weekday = weekdayNames[currentDate.getDay()];
-          const isSpecial = day.isHoliday || day.isSundayClosed;
+          const isSpecial = day.isHoliday || day.isSundayClosed || Boolean(day.holidayName) || (day.remarks || "").includes("노동절");
           const count = calendarData.shuttleCounts[day.date];
           const note = day.holidayName || day.remarks || "\\u00A0";
           return `
