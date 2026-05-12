@@ -748,9 +748,12 @@ def render_html(
       .transport-section.mobile-transport {{
         position: sticky;
         top: var(--mobile-sticky-offset, 164px);
+        display: flex;
+        flex-direction: column;
         gap: 0;
         padding-top: 0;
         overflow: hidden;
+        min-height: 0;
         max-height: calc(100vh - var(--mobile-sticky-offset, 164px) - 18px - env(safe-area-inset-bottom));
       }}
       .mobile-section-head {{
@@ -764,14 +767,19 @@ def render_html(
         background: linear-gradient(180deg, rgba(250,245,236,0.98) 0%, rgba(250,245,236,0.98) 72%, rgba(250,245,236,0) 100%);
       }}
       .mobile-section-head .eyebrow {{ margin-bottom: 0; }}
+      .mobile-section-head .section-total.mobile-total {{
+        display: inline-flex;
+        justify-self: start;
+      }}
       .mobile-section-scroll {{
+        flex: 1 1 auto;
         overflow-y: auto;
         min-height: 0;
-        padding-bottom: 6px;
+        padding: 0 0 6px;
         -webkit-overflow-scrolling: touch;
       }}
       .section-heading {{ display: none; }}
-      .section-total.mobile-total {{ display: inline-flex; }}
+      .section-total.mobile-total {{ display: none; }}
       .order-strip-card {{ align-items: flex-start; flex-direction: column; }}
       .vehicle-grid {{ grid-template-columns: 1fr; gap: 12px; }}
       .vehicle-card {{ min-height: 0; padding: 16px; }}
@@ -1456,12 +1464,11 @@ def render_html(
         : "";
       return `
         <section class="transport-section${{mobile ? " mobile-transport" : ""}}">
-          ${{mobile ? `<div class="mobile-section-head">${{mobileTabs}}<p class="eyebrow">${{eyebrow}}</p></div><div class="mobile-section-scroll">` : ""}}
+          ${{mobile ? `<div class="mobile-section-head">${{mobileTabs}}<p class="eyebrow">${{eyebrow}}</p><div class="section-total mobile-total">${{title}} 인원 ${{total}}명</div></div><div class="mobile-section-scroll">` : ""}}
           <div class="section-heading">
             <div><p class="eyebrow">${{eyebrow}}</p><h2>${{title}}</h2></div>
             <div class="section-total">${{title}} 인원 ${{total}}명</div>
           </div>
-          ${{mobile ? `<div class="section-total mobile-total">${{title}} 인원 ${{total}}명</div>` : ""}}
           ${{orderStrip}}
           <div class="vehicle-grid">${{cards}}</div>
           <div class="self-row">${{selfCardMarkup(side)}}</div>
