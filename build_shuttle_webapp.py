@@ -746,22 +746,30 @@ def render_html(
       .date-arrow {{ width: 46px; height: 46px; flex-basis: 46px; font-size: 1.2rem; }}
       .hero-date-display {{ min-width: 0; font-size: clamp(2rem, 7vw, 3.2rem); }}
       .transport-section.mobile-transport {{
-        position: relative;
-        gap: 14px;
+        position: sticky;
+        top: var(--mobile-sticky-offset, 164px);
+        gap: 0;
         padding-top: 0;
-        overflow: visible;
+        overflow: hidden;
+        max-height: calc(100vh - var(--mobile-sticky-offset, 164px) - 18px - env(safe-area-inset-bottom));
       }}
       .mobile-section-head {{
         display: grid;
         gap: 10px;
         position: sticky;
-        top: var(--mobile-sticky-offset, 164px);
+        top: 0;
         z-index: 14;
         padding: 16px 0 18px;
         margin: 0;
         background: linear-gradient(180deg, rgba(250,245,236,0.98) 0%, rgba(250,245,236,0.98) 72%, rgba(250,245,236,0) 100%);
       }}
       .mobile-section-head .eyebrow {{ margin-bottom: 0; }}
+      .mobile-section-scroll {{
+        overflow-y: auto;
+        min-height: 0;
+        padding-bottom: 6px;
+        -webkit-overflow-scrolling: touch;
+      }}
       .section-heading {{ display: none; }}
       .section-total.mobile-total {{ display: inline-flex; }}
       .order-strip-card {{ align-items: flex-start; flex-direction: column; }}
@@ -800,7 +808,7 @@ def render_html(
     <section class="hero">
       <div class="top-shell" id="top-shell">
         <header class="site-header">
-          <a class="brand" href="./index.html">
+          <a class="brand" href="./index.html" id="brand-link">
             <img class="brand-logo" src="./logo.png" alt="반디 로고" />
             <span class="brand-text">반디</span>
           </a>
@@ -890,6 +898,7 @@ def render_html(
     let RESIDENT_NAMES = collectResidentNamesFromSchedules(scheduleStore);
     const weekdayNames = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
     const topShell = document.getElementById("top-shell");
+    const brandLink = document.getElementById("brand-link");
     const heroDateRow = document.querySelector(".hero-date-row");
     const heroDateDisplay = document.getElementById("hero-date-display");
     const appRoot = document.getElementById("app-root");
@@ -1447,7 +1456,7 @@ def render_html(
         : "";
       return `
         <section class="transport-section${{mobile ? " mobile-transport" : ""}}">
-          ${{mobile ? `<div class="mobile-section-head">${{mobileTabs}}<p class="eyebrow">${{eyebrow}}</p></div>` : ""}}
+          ${{mobile ? `<div class="mobile-section-head">${{mobileTabs}}<p class="eyebrow">${{eyebrow}}</p></div><div class="mobile-section-scroll">` : ""}}
           <div class="section-heading">
             <div><p class="eyebrow">${{eyebrow}}</p><h2>${{title}}</h2></div>
             <div class="section-total">${{title}} 인원 ${{total}}명</div>
@@ -1456,6 +1465,7 @@ def render_html(
           ${{orderStrip}}
           <div class="vehicle-grid">${{cards}}</div>
           <div class="self-row">${{selfCardMarkup(side)}}</div>
+          ${{mobile ? `</div>` : ""}}
         </section>
       `;
     }}
@@ -1980,6 +1990,28 @@ def render_html(
         await syncScheduleForActiveDate();
         renderApp();
       }});
+    }});
+
+    brandLink?.addEventListener("click", async (event) => {{
+      event.preventDefault();
+      menuPanel.classList.remove("is-open");
+      const todayKey = todayDateKey();
+      const currentKey = activeDateKey();
+      window.scrollTo(0, 0);
+      state.mobileSide = defaultMobileSide();
+      if (currentKey === todayKey) {{
+        renderHeroDate();
+        updateMobileStickyOffset();
+        syncDateUrl(true);
+        renderApp();
+        return;
+      }}
+      activeDate = new Date(todayKey + "T12:00:00");
+      renderHeroDate();
+      updateMobileStickyOffset();
+      syncDateUrl(true);
+      await syncScheduleForActiveDate();
+      renderApp();
     }});
 
     window.addEventListener("popstate", async () => {{
