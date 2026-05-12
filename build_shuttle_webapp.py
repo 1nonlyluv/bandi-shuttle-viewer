@@ -767,10 +767,6 @@ def render_html(
         background: linear-gradient(180deg, rgba(250,245,236,0.98) 0%, rgba(250,245,236,0.98) 72%, rgba(250,245,236,0) 100%);
       }}
       .mobile-section-head .eyebrow {{ margin-bottom: 0; }}
-      .mobile-section-head .section-total.mobile-total {{
-        display: inline-flex;
-        justify-self: start;
-      }}
       .mobile-section-scroll {{
         flex: 1 1 auto;
         overflow-y: auto;
@@ -779,11 +775,26 @@ def render_html(
         -webkit-overflow-scrolling: touch;
       }}
       .section-heading {{ display: none; }}
-      .section-total.mobile-total {{ display: none; }}
+      .section-total.mobile-total {{
+        display: inline-flex;
+        align-self: flex-start;
+        margin-bottom: 14px;
+      }}
       .order-strip-card {{ align-items: flex-start; flex-direction: column; }}
       .vehicle-grid {{ grid-template-columns: 1fr; gap: 12px; }}
-      .vehicle-card {{ min-height: 0; padding: 16px; }}
-      .vehicle-mark {{ font-size: 3.3rem; }}
+      .vehicle-card {{
+        min-height: 0;
+        padding: 16px;
+        background: #fbf8f2;
+        box-shadow: none;
+        backdrop-filter: none;
+      }}
+      .self-card {{
+        background: #f8f4ed;
+        box-shadow: none;
+        backdrop-filter: none;
+      }}
+      .vehicle-mark {{ font-size: 6rem; top: -2px; right: 8px; }}
       .vehicle-card h3 {{ font-size: 1.08rem; }}
       .ghost-button, .schedule-link, .chip-button, .nav-link, .primary-button, .danger-button {{ font-size: 0.76rem; }}
       .person-row strong {{ font-size: 1rem; }}
@@ -803,7 +814,7 @@ def render_html(
       }}
       .modal-dialog[data-sheet="true"] .modal-shell {{
         width: 100%;
-        max-height: 76vh;
+        max-height: 88vh;
         overflow: auto;
         border-radius: 28px 28px 0 0;
         padding-bottom: calc(24px + env(safe-area-inset-bottom));
@@ -1464,7 +1475,7 @@ def render_html(
         : "";
       return `
         <section class="transport-section${{mobile ? " mobile-transport" : ""}}">
-          ${{mobile ? `<div class="mobile-section-head">${{mobileTabs}}<p class="eyebrow">${{eyebrow}}</p><div class="section-total mobile-total">${{title}} 인원 ${{total}}명</div></div><div class="mobile-section-scroll">` : ""}}
+          ${{mobile ? `<div class="mobile-section-head">${{mobileTabs}}<p class="eyebrow">${{eyebrow}}</p></div><div class="mobile-section-scroll"><div class="section-total mobile-total">${{title}} 인원 ${{total}}명</div>` : ""}}
           <div class="section-heading">
             <div><p class="eyebrow">${{eyebrow}}</p><h2>${{title}}</h2></div>
             <div class="section-total">${{title}} 인원 ${{total}}명</div>
