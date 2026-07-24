@@ -44,27 +44,6 @@ DEFAULT_STAFF_ROSTER = [
     {"name": "최재영", "position": "대표"},
 ]
 
-FIXED_SPECIAL_DAYS = {
-    "01-01": "신정",
-    "03-01": "삼일절",
-    "05-01": "노동절",
-    "05-05": "어린이날",
-    "06-06": "현충일",
-    "08-15": "광복절",
-    "10-03": "개천절",
-    "10-09": "한글날",
-    "12-25": "성탄절",
-}
-
-SUBSTITUTE_ELIGIBLE_FIXED_DAYS = {
-    "03-01",
-    "05-05",
-    "08-15",
-    "10-03",
-    "10-09",
-    "12-25",
-}
-
 
 def dialog_id(prefix: str, vehicle_name: str) -> str:
     return f"{prefix}-{vehicle_name.replace('호차', '')}"
@@ -116,52 +95,11 @@ def load_staff_roster() -> list[dict[str, str]]:
     return sorted(seen.values(), key=lambda item: item["name"]) or DEFAULT_STAFF_ROSTER
 
 
-def supplement_calendar_special_days(days: list[dict[str, object]]) -> list[dict[str, object]]:
-    indexed: dict[str, dict[str, object]] = {str(day.get("date")): dict(day) for day in days if day.get("date")}
-
-    def ensure_day(current: date) -> dict[str, object]:
-        key = current.isoformat()
-        if key not in indexed:
-            indexed[key] = {
-                "date": key,
-                "isSundayClosed": current.weekday() == 6,
-                "isHoliday": False,
-                "holidayName": "",
-                "remarks": "",
-            }
-        return indexed[key]
-
-    def apply_holiday(current: date, label: str, *, substitute: bool = False) -> None:
-        day = ensure_day(current)
-        day["isHoliday"] = True
-        if substitute:
-            day["holidayName"] = "대체공휴일"
-        elif not str(day.get("holidayName") or "").strip():
-            day["holidayName"] = label
-
-    years = sorted({date.fromisoformat(key).year for key in indexed})
-    for year in years:
-        for month_day, label in FIXED_SPECIAL_DAYS.items():
-            month, day = map(int, month_day.split("-"))
-            holiday_date = date(year, month, day)
-            apply_holiday(holiday_date, label)
-            if month_day in SUBSTITUTE_ELIGIBLE_FIXED_DAYS and holiday_date.weekday() >= 5:
-                observed = holiday_date + timedelta(days=(7 - holiday_date.weekday()))
-                while observed.isoformat() in indexed and (
-                    bool(indexed[observed.isoformat()].get("isHoliday")) or bool(indexed[observed.isoformat()].get("isSundayClosed"))
-                ):
-                    observed += timedelta(days=1)
-                apply_holiday(observed, label, substitute=True)
-
-    return [indexed[key] for key in sorted(indexed)]
-
-
 def load_schedule_calendar_payload(base_date: date) -> dict[str, object]:
     if SCHEDULE_JSON_PATH.exists():
         try:
             payload = json.loads(SCHEDULE_JSON_PATH.read_text(encoding="utf-8"))
             if isinstance(payload, dict) and isinstance(payload.get("months"), list) and isinstance(payload.get("days"), list):
-                payload["days"] = supplement_calendar_special_days(list(payload["days"]))
                 return payload
         except (OSError, json.JSONDecodeError):
             pass
@@ -180,7 +118,6 @@ def load_schedule_calendar_payload(base_date: date) -> dict[str, object]:
                 "remarks": "",
             }
         )
-    days = supplement_calendar_special_days(days)
     return {
         "months": [{"key": month_key, "label": f"{base_date.year}년 {base_date.month}월"}],
         "days": days,
@@ -245,17 +182,22 @@ def build_schedule_bundle(primary_path: str | Path) -> tuple[dict[str, dict], di
     monthly_mode = is_monthly_schedule_workbook(primary)
     bundle: dict[str, dict] = {}
     primary_parsed: dict | None = None
+    primary_sheet_count = 0
     for path in collect_schedule_files(primary):
         try:
             parsed_sheets = parse_schedule_workbook(path)
         except zipfile.BadZipFile:
             continue
+        if path == primary:
+            primary_sheet_count = len(parsed_sheets)
         for parsed in parsed_sheets:
             date_key = derive_base_date(parsed).isoformat()
             bundle[date_key] = parsed
             if not monthly_mode and path == primary and primary_parsed is None:
                 primary_parsed = parsed
     if monthly_mode and bundle:
+        primary_parsed = bundle[max(bundle)]
+    elif primary_sheet_count > 1 and bundle:
         primary_parsed = bundle[max(bundle)]
     if primary_parsed is None:
         primary_parsed = parse_schedule(primary)
@@ -526,7 +468,7 @@ def render_html(
         repeating-linear-gradient(90deg, rgba(83,68,49,0.012) 0, rgba(83,68,49,0.012) 1px, transparent 1px, transparent 11px);
       opacity: 0.72;
     }}
-    .page-shell {{ max-width: 520px; margin: 0 auto; padding: 18px 12px 32px; }}
+    .page-shell {{ max-width: 1600px; margin: 0 auto; padding: 28px 22px 56px; }}
     .site-header,
     .hero-top,
     .toolbar,
@@ -539,7 +481,6 @@ def render_html(
       overflow: hidden;
       border: 1px solid rgba(49, 53, 60, 0.08);
       background: var(--paper-base);
-      background-clip: padding-box;
       box-shadow: var(--shadow-lg), var(--paper-lift);
       backdrop-filter: blur(14px);
     }}
@@ -553,8 +494,7 @@ def render_html(
     .modal-shell::before {{
       content: "";
       position: absolute;
-      inset: 1px;
-      border-radius: inherit;
+      inset: 0;
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.34), transparent 32%),
         repeating-linear-gradient(0deg, transparent 0, transparent 10px, rgba(120, 103, 79, 0.012) 10px, rgba(120, 103, 79, 0.012) 11px);
@@ -565,7 +505,6 @@ def render_html(
       display: flex; align-items: center; justify-content: space-between; gap: 18px;
       margin-bottom: 22px; padding: 16px 20px; border-radius: 999px; background: rgba(250,246,240,0.76);
       overflow: visible;
-      isolation: isolate;
       z-index: 40;
     }}
     .brand, .header-actions, .hero-top > *, .toolbar > *, .transport-section > *, .order-strip-card > *, .vehicle-card > *, .self-card > *, .modal-shell > * {{ position: relative; z-index: 1; }}
@@ -575,24 +514,23 @@ def render_html(
       font-family: var(--font-display); letter-spacing: -0.04em;
     }}
     .brand-text {{ font-size: 1.24rem; font-weight: 760; }}
-    .header-actions {{ display: flex; flex-direction: column; align-items: flex-end; gap: 8px; position: relative; z-index: 90; }}
-    .header-menu {{ position: relative; display: flex; justify-content: flex-end; }}
+    .header-actions {{ display: flex; flex-direction: column; align-items: flex-end; gap: 8px; position: relative; }}
+    .header-menu {{ position: relative; }}
     .menu-button {{
       width: 42px; height: 42px; display: grid; place-items: center; padding: 0;
       border: 1px solid var(--line); background: rgba(255,255,255,0.72); color: inherit; border-radius: 999px; cursor: pointer;
       font-size: 1.2rem; font-weight: 800;
     }}
     .menu-panel {{
-      position: fixed; top: 18px; right: 18px; min-width: 220px; max-width: min(260px, calc(100vw - 88px)); padding: 8px;
-      border-radius: 18px; border: 1px solid var(--line); background: rgba(252,248,241,1);
-      box-shadow: var(--shadow-md); display: none; z-index: 140;
+      position: absolute; top: calc(100% + 8px); right: 0; min-width: 168px; padding: 8px;
+      border-radius: 18px; border: 1px solid var(--line); background: rgba(252,248,241,0.98);
+      box-shadow: var(--shadow-md); display: none; z-index: 80;
     }}
     .menu-panel.is-open {{ display: grid; gap: 6px; }}
     .menu-item {{
       min-height: 40px; padding: 0 12px; border: 1px solid transparent; border-radius: 12px;
-      background: transparent; color: inherit; text-decoration: none; font-weight: 700; font-size: 1rem; line-height: 1.35; display: inline-flex; align-items: center; cursor: pointer;
+      background: transparent; color: inherit; text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; cursor: pointer;
     }}
-    .menu-item[hidden] {{ display: none !important; }}
     .menu-item:hover {{ background: rgba(143,115,92,0.08); border-color: var(--line); }}
     .chip-button, .nav-link, .ghost-button, .schedule-link, .self-card, .modal-close, .primary-button, .danger-button, .inline-button {{
       border: 1px solid var(--line); background: rgba(255, 255, 255, 0.72); color: inherit; border-radius: 999px; cursor: pointer;
@@ -610,8 +548,10 @@ def render_html(
     .hero-actions {{ margin-top: 14px; display: flex; justify-content: center; }}
     .toolbar {{ display: flex; align-items: center; justify-content: center; gap: 16px; padding: 12px 14px; border-radius: var(--radius-lg); }}
     .toolbar-group {{ display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }}
-    .toolbar-group.search-group {{ flex: 1 1 920px; min-width: 0; justify-content: center; }}
-    .search-shell {{ display: flex; gap: 10px; align-items: center; width: min(100%, 1080px); min-width: 0; margin: 0 auto; }}
+    .toolbar-group.search-group {{ flex: 1 1 620px; min-width: 0; justify-content: center; }}
+    .role-pill {{ display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 999px; background: rgba(255,255,255,0.62); border: 1px solid var(--line); font-weight: 700; }}
+    .viewer-note {{ color: var(--ink-soft); font-size: 0.92rem; }}
+    .search-shell {{ display: flex; gap: 10px; align-items: center; width: min(100%, 720px); min-width: 0; margin: 0 auto; }}
     .search-field {{ flex: 1 1 auto; min-width: 0; min-height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,0.82); font: inherit; }}
     .search-field::placeholder {{ color: #96897b; }}
     .search-helper {{ color: var(--ink-soft); font-size: 0.84rem; }}
@@ -694,10 +634,10 @@ def render_html(
     .inline-button {{ min-height: 34px; padding: 0 12px; font-size: 0.82rem; font-weight: 700; }}
     .danger-button {{ background: var(--danger-soft); }}
     .empty-copy {{ color: var(--ink-soft); }}
-    .desktop-only {{ display: none; }}
-    .mobile-only {{ display: block; }}
+    .desktop-only {{ display: contents; }}
+    .mobile-only {{ display: none; }}
     @media (max-width: 1280px) {{ .vehicle-grid {{ grid-template-columns: repeat(3, minmax(0, 1fr)); }} .form-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
-    @media (max-width: 9999px) {{
+    @media (max-width: 768px) {{
       .page-shell {{ padding: 18px 12px 32px; }}
       .top-shell {{
         position: sticky;
@@ -708,43 +648,32 @@ def render_html(
         border-radius: 28px;
         border: 1px solid rgba(49, 53, 60, 0.08);
         background: var(--paper-base);
-        overflow: hidden;
         box-shadow: var(--shadow-lg), var(--paper-lift);
         backdrop-filter: blur(14px);
       }}
       .top-shell::before {{
-        display: none;
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,0.34), transparent 32%),
+          repeating-linear-gradient(0deg, transparent 0, transparent 10px, rgba(120,103,79,0.012) 10px, rgba(120,103,79,0.012) 11px);
+        pointer-events: none;
       }}
       .top-shell > * {{ position: relative; z-index: 1; }}
-      .site-header {{ margin-bottom: 0; padding: 0; border-radius: 0; flex-direction: row; align-items: center; background: transparent; box-shadow: none; border: 0; backdrop-filter: none; z-index: 120; }}
-      .hero-top {{ padding: 0; border-radius: 0; background: transparent; box-shadow: none; border: 0; backdrop-filter: none; z-index: 1; }}
-      .site-header::before,
-      .hero-top::before,
-      .toolbar::before,
-      .transport-section::before,
-      .vehicle-card::before,
-      .self-card::before,
-      .order-strip-card::before {{
-        display: none;
-      }}
+      .site-header {{ margin-bottom: 0; padding: 0; border-radius: 0; flex-direction: row; align-items: center; background: transparent; box-shadow: none; border: 0; backdrop-filter: none; }}
+      .hero-top {{ padding: 0; border-radius: 0; background: transparent; box-shadow: none; border: 0; backdrop-filter: none; }}
       .toolbar {{ border-radius: 18px; padding: 8px 10px; align-items: center; margin-top: 4px; }}
       .header-actions {{ width: auto; align-items: flex-end; }}
       .toolbar-group {{ width: 100%; align-items: stretch; }}
       .toolbar-group:last-child {{ gap: 8px; }}
       .header-menu {{ align-self: auto; }}
-      .menu-panel {{
-        top: 16px;
-        right: 16px;
-        left: auto;
-        min-width: 196px;
-        max-width: min(248px, calc(100vw - 32px));
-      }}
-      .menu-item {{ font-size: 1.14rem; }}
+      .menu-panel {{ left: 0; right: auto; }}
       .mobile-side-tabs {{ display: flex; width: 100%; }}
       .transport-section, .vehicle-card, .order-strip-card, .modal-shell {{ border-radius: 26px; }}
-      .hero-date-row {{ grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 8px; }}
+      .hero-date-row {{ gap: 10px; }}
       .date-arrow {{ width: 46px; height: 46px; flex-basis: 46px; font-size: 1.2rem; }}
-      .hero-date-display {{ min-width: 0; font-size: clamp(2rem, 7vw, 3.2rem); }}
+      .hero-date-display {{ font-size: clamp(2rem, 7vw, 3.2rem); }}
       .transport-section.mobile-transport {{
         position: sticky;
         top: var(--mobile-sticky-offset, 164px);
@@ -804,6 +733,7 @@ def render_html(
       .mobile-only {{ display: block; }}
       .self-card {{ width: 100%; }}
       .meta-grid, .form-grid {{ grid-template-columns: 1fr; }}
+      .viewer-note {{ font-size: 0.78rem; line-height: 1.3; }}
       .search-shell {{ width: min(100%, 94vw); }}
       .modal-dialog[data-sheet="true"] {{
         width: 100vw;
@@ -834,6 +764,13 @@ def render_html(
           <div class="header-actions">
             <div class="header-menu">
               <button type="button" class="menu-button" id="menu-toggle" aria-label="메뉴">☰</button>
+              <div class="menu-panel" id="menu-panel">
+                <button type="button" class="menu-item" data-action="open-print">인쇄 미리보기</button>
+                <button type="button" class="menu-item" data-action="open-export" data-kind="original">원본 내보내기</button>
+                <button type="button" class="menu-item" data-action="open-export" data-kind="edited">수정본 내보내기</button>
+                <button type="button" class="menu-item" id="reset-menu-item" data-action="reset-schedule" hidden>수정 초기화</button>
+                <button type="button" class="menu-item" id="admin-toggle">관리자 로그인</button>
+              </div>
             </div>
           </div>
         </header>
@@ -859,16 +796,13 @@ def render_html(
             <button type="button" class="primary-button search-button" id="resident-search-button">검색</button>
           </div>
         </div>
+        <div class="toolbar-group" id="admin-toolbar-meta">
+          <div class="role-pill" id="role-pill">뷰어 모드</div>
+          <span class="viewer-note">편집은 {escape(admin_label)}만 가능합니다.</span>
+        </div>
       </section>
     </section>
   </main>
-  <div class="menu-panel" id="menu-panel">
-    <button type="button" class="menu-item" id="upload-menu-item" data-action="open-upload" hidden>엑셀 업로드</button>
-    <button type="button" class="menu-item" data-action="open-export" data-kind="original">원본 내보내기</button>
-    <button type="button" class="menu-item" data-action="open-export" data-kind="edited">수정본 내보내기</button>
-    <button type="button" class="menu-item" id="reset-menu-item" data-action="reset-schedule" hidden>수정 초기화</button>
-    <button type="button" class="menu-item" id="admin-toggle">관리자 로그인</button>
-  </div>
   <dialog id="app-dialog" class="modal-dialog"></dialog>
   <script id="schedule-data" type="application/json">{schedule_json}</script>
   <script>
@@ -877,44 +811,8 @@ def render_html(
       driver: {json.dumps(driver_candidates, ensure_ascii=False)},
       companion: {json.dumps(companion_candidates, ensure_ascii=False)},
     }};
+    const RESIDENT_NAMES = {json.dumps(resident_names, ensure_ascii=False)};
     const initialSchedules = JSON.parse(document.getElementById("schedule-data").textContent);
-    const SCHEDULE_BUNDLE_CACHE_KEY = "bandi_shuttle_schedule_bundle_cache_v1";
-    const API_ENDPOINTS = {{
-      config: "./api/config",
-      schedules: "./api/schedules",
-      overrides: "./api/overrides",
-      upload: "./api/upload",
-    }};
-    function isValidScheduleBundle(candidate) {{
-      return Boolean(
-        candidate &&
-        typeof candidate === "object" &&
-        !Array.isArray(candidate) &&
-        Object.values(candidate).every((value) => isValidScheduleData(value))
-      );
-    }}
-
-    function loadCachedScheduleBundle() {{
-      try {{
-        const raw = window.localStorage.getItem(SCHEDULE_BUNDLE_CACHE_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        return isValidScheduleBundle(parsed) ? parsed : null;
-      }} catch (_error) {{
-        return null;
-      }}
-    }}
-
-    function persistScheduleBundleCache(bundle) {{
-      try {{
-        if (!isValidScheduleBundle(bundle)) return;
-        window.localStorage.setItem(SCHEDULE_BUNDLE_CACHE_KEY, JSON.stringify(bundle));
-      }} catch (_error) {{
-      }}
-    }}
-
-    let scheduleStore = loadCachedScheduleBundle() || initialSchedules;
-    let RESIDENT_NAMES = collectResidentNamesFromSchedules(scheduleStore);
     const weekdayNames = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
     const topShell = document.getElementById("top-shell");
     const brandLink = document.getElementById("brand-link");
@@ -924,10 +822,12 @@ def render_html(
     const appDialog = document.getElementById("app-dialog");
     const menuToggle = document.getElementById("menu-toggle");
     const menuPanel = document.getElementById("menu-panel");
+    const rolePill = document.getElementById("role-pill");
     const adminToolbar = document.getElementById("admin-toolbar");
+    const adminToolbarMeta = document.getElementById("admin-toolbar-meta");
     const adminToggle = document.getElementById("admin-toggle");
     const resetMenuItem = document.getElementById("reset-menu-item");
-    const uploadMenuItem = document.getElementById("upload-menu-item");
+    const viewerNote = document.querySelector(".viewer-note");
     const residentSearchInput = document.getElementById("resident-search");
     const residentSearchButton = document.getElementById("resident-search-button");
     const residentSuggestions = document.getElementById("resident-suggestions");
@@ -940,90 +840,28 @@ def render_html(
       }}).format(new Date());
     }}
     function parseActiveDate() {{
-      const historyDate = window.history.state?.date;
-      if (historyDate && /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(historyDate)) {{
-        return new Date(historyDate + "T12:00:00");
-      }}
       const search = new URLSearchParams(window.location.search);
       const raw = search.get("date");
-      const isInternalNavigation = search.get("nav") === "1";
-      if (isInternalNavigation && raw && /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(raw)) {{
+      if (raw && /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(raw)) {{
         return new Date(raw + "T12:00:00");
       }}
-      return new Date(todayDateKey() + "T12:00:00");
-    }}
-
-    function currentSeoulHour() {{
-      const parts = new Intl.DateTimeFormat("en-CA", {{
-        timeZone: "Asia/Seoul",
-        hour: "2-digit",
-        hour12: false,
-      }}).formatToParts(new Date());
-      return Number(parts.find((part) => part.type === "hour")?.value || "0");
-    }}
-
-    function defaultMobileSide() {{
-      return currentSeoulHour() >= 12 ? "dropoff" : "pickup";
-    }}
-
-    function getAdminSessionToken() {{
-      try {{
-        return window.sessionStorage.getItem("bandi_shuttle_admin_hash") || "";
-      }} catch (error) {{
-        return "";
+      const todayIso = todayDateKey();
+      if (initialSchedules[todayIso]) {{
+        return new Date(todayIso + "T12:00:00");
       }}
-    }}
-
-    function setAdminSessionToken(value) {{
-      try {{
-        if (value) {{
-          window.sessionStorage.setItem("bandi_shuttle_admin_hash", value);
-        }} else {{
-          window.sessionStorage.removeItem("bandi_shuttle_admin_hash");
-        }}
-      }} catch (error) {{
-        // Ignore storage access failures and keep admin mode in-memory only.
-      }}
+      return heroDateRow ? new Date(heroDateRow.dataset.baseDate + "T12:00:00") : null;
     }}
 
     let activeDate = parseActiveDate();
     let state = {{
       data: null,
-      isAdmin: getAdminSessionToken() === ADMIN_CONFIG.pinHash,
+      isAdmin: false,
       activeModal: null,
-      mobileSide: defaultMobileSide(),
-      backendConfigured: false,
-      remoteBootstrapping: true,
+      mobileSide: "pickup",
     }};
-    let sharedRefreshHandle = null;
 
     function clone(value) {{
       return JSON.parse(JSON.stringify(value));
-    }}
-
-    function scheduleFingerprint(value) {{
-      return value ? JSON.stringify(value) : "";
-    }}
-
-    function collectResidentNamesFromSchedules(bundle) {{
-      const names = new Set();
-      Object.values(bundle || {{}}).forEach((schedule) => {{
-        (schedule.vehicles || []).forEach((vehicle) => {{
-          ["pickup_rounds", "dropoff_rounds"].forEach((key) => {{
-            (vehicle[key] || []).forEach((roundData) => {{
-              (roundData.entries || []).forEach((entry) => {{
-                if (entry.name) names.add(entry.name);
-              }});
-            }});
-          }});
-        }});
-        ["self_pickup", "self_dropoff"].forEach((key) => {{
-          ((schedule[key] || {{}}).entries || []).forEach((entry) => {{
-            if (entry.name) names.add(entry.name);
-          }});
-        }});
-      }});
-      return Array.from(names).sort();
     }}
 
     function isValidScheduleData(candidate) {{
@@ -1048,19 +886,7 @@ def render_html(
     }}
 
     function baseScheduleForDate(dateKey = activeDateKey()) {{
-      return dateKey ? scheduleStore[dateKey] || null : null;
-    }}
-
-    async function fetchRemoteSchedules() {{
-      if (!state.backendConfigured) return null;
-      try {{
-        const response = await window.fetch(API_ENDPOINTS.schedules, {{ cache: "no-store" }});
-        if (!response.ok) return null;
-        const payload = await response.json();
-        return payload && payload.schedules && typeof payload.schedules === "object" ? payload.schedules : null;
-      }} catch (_error) {{
-        return null;
-      }}
+      return dateKey ? initialSchedules[dateKey] || null : null;
     }}
 
     function loadPersistedData(schedule) {{
@@ -1075,121 +901,13 @@ def render_html(
       }}
     }}
 
-    function persistLocalData() {{
+    function persistData() {{
       if (!state.data) return;
       localStorage.setItem(storageKey(baseScheduleForDate()), JSON.stringify(state.data));
     }}
 
-    async function fetchBackendConfig() {{
-      try {{
-        const response = await window.fetch(API_ENDPOINTS.config, {{ cache: "no-store" }});
-        if (!response.ok) return false;
-        const payload = await response.json();
-        return Boolean(payload && payload.configured);
-      }} catch (_error) {{
-        return false;
-      }}
-    }}
-
-    async function loadRemoteOverride(dateKey) {{
-      if (!state.backendConfigured || !dateKey) return null;
-      try {{
-        const response = await window.fetch(`${{API_ENDPOINTS.overrides}}?date=${{encodeURIComponent(dateKey)}}`, {{
-          cache: "no-store",
-        }});
-        if (response.status === 404) return null;
-        if (!response.ok) throw new Error("override fetch failed");
-        const payload = await response.json();
-        return isValidScheduleData(payload?.data) ? payload.data : null;
-      }} catch (_error) {{
-        return null;
-      }}
-    }}
-
-    async function saveRemoteOverride(dateKey, data) {{
-      if (!state.backendConfigured || !dateKey || !isValidScheduleData(data)) return true;
-      try {{
-        const response = await window.fetch(API_ENDPOINTS.overrides, {{
-          method: "POST",
-          headers: {{ "Content-Type": "application/json" }},
-          body: JSON.stringify({{
-            date_key: dateKey,
-            data,
-            updated_by: state.isAdmin ? ADMIN_CONFIG.label : "viewer",
-          }}),
-        }});
-        return response.ok;
-      }} catch (_error) {{
-        return false;
-      }}
-    }}
-
-    async function clearRemoteOverride(dateKey) {{
-      if (!state.backendConfigured || !dateKey) return true;
-      try {{
-        const response = await window.fetch(`${{API_ENDPOINTS.overrides}}?date=${{encodeURIComponent(dateKey)}}`, {{
-          method: "DELETE",
-        }});
-        return response.ok;
-      }} catch (_error) {{
-        return false;
-      }}
-    }}
-
-    async function persistData() {{
-      if (!state.data) return;
-      persistLocalData();
-      const ok = await saveRemoteOverride(activeDateKey(), state.data);
-      if (!ok) {{
-        window.console.warn("Shared override save failed; kept local copy only.");
-      }}
-    }}
-
-    async function syncScheduleForActiveDate() {{
-      const baseSchedule = baseScheduleForDate();
-      if (!baseSchedule) {{
-        state.data = null;
-        return;
-      }}
-      if (state.backendConfigured) {{
-        const remoteState = await loadRemoteOverride(activeDateKey());
-        state.data = remoteState || clone(baseSchedule);
-        return;
-      }}
-      state.data = loadPersistedData(baseSchedule);
-    }}
-
-    async function refreshSharedState() {{
-      if (!state.backendConfigured) return;
-      const baseSchedule = baseScheduleForDate();
-      if (!baseSchedule) return;
-      const remoteState = await loadRemoteOverride(activeDateKey());
-      const nextState = remoteState || clone(baseSchedule);
-      if (scheduleFingerprint(nextState) !== scheduleFingerprint(state.data)) {{
-        state.data = nextState;
-        renderApp();
-      }}
-    }}
-
-    async function refreshScheduleBundle() {{
-      if (!state.backendConfigured) return;
-      const remoteSchedules = await fetchRemoteSchedules();
-      if (remoteSchedules && Object.keys(remoteSchedules).length) {{
-        scheduleStore = remoteSchedules;
-        persistScheduleBundleCache(scheduleStore);
-        RESIDENT_NAMES = collectResidentNamesFromSchedules(scheduleStore);
-      }}
-    }}
-
-    function ensureSharedRefreshLoop() {{
-      if (sharedRefreshHandle) {{
-        window.clearInterval(sharedRefreshHandle);
-        sharedRefreshHandle = null;
-      }}
-      if (!state.backendConfigured) return;
-      sharedRefreshHandle = window.setInterval(() => {{
-        refreshSharedState();
-      }}, 15000);
+    function syncScheduleForActiveDate() {{
+      state.data = loadPersistedData(baseScheduleForDate());
     }}
 
     function updateResidentSuggestions() {{
@@ -1361,7 +1079,6 @@ def render_html(
       if (!activeDate) return;
       const nextUrl = new URL(window.location.href);
       nextUrl.searchParams.set("date", activeDate.toISOString().slice(0, 10));
-      nextUrl.searchParams.delete("nav");
       if (replace) {{
         window.history.replaceState({{ date: nextUrl.searchParams.get("date") }}, "", nextUrl);
       }} else {{
@@ -1502,7 +1219,6 @@ def render_html(
 
     function renderApp() {{
       if (!state.data) {{
-        const isLoading = state.remoteBootstrapping;
         appRoot.innerHTML = `
           <div class="mobile-only">
             <section class="transport-section">
@@ -1511,23 +1227,25 @@ def render_html(
                 <button type="button" class="mobile-side-tab" data-action="set-mobile-side" data-side="dropoff">송영</button>
               </div>
               <div class="section-heading">
-                <div><p class="eyebrow">${{isLoading ? "Loading" : "No Schedule"}}</p><h2>${{isLoading ? "운행표 불러오는 중" : "운행표 없음"}}</h2></div>
+                <div><p class="eyebrow">No Schedule</p><h2>운행표 없음</h2></div>
               </div>
-              <p class="empty-copy">${{isLoading ? "최신 운행표를 확인하고 있습니다." : "선택한 날짜의 셔틀 운행표 데이터가 없습니다."}}</p>
+              <p class="empty-copy">선택한 날짜의 셔틀 운행표 데이터가 없습니다.</p>
             </section>
           </div>
           <div class="desktop-only">
             <section class="transport-section">
               <div class="section-heading">
-                <div><p class="eyebrow">${{isLoading ? "Loading" : "No Schedule"}}</p><h2>${{isLoading ? "운행표 불러오는 중" : "운행표 없음"}}</h2></div>
+                <div><p class="eyebrow">No Schedule</p><h2>운행표 없음</h2></div>
               </div>
-              <p class="empty-copy">${{isLoading ? "최신 운행표를 확인하고 있습니다." : "선택한 날짜의 셔틀 운행표 데이터가 없습니다."}}</p>
+              <p class="empty-copy">선택한 날짜의 셔틀 운행표 데이터가 없습니다.</p>
             </section>
           </div>
         `;
+        rolePill.textContent = `${{ADMIN_CONFIG.label}} 모드`;
         adminToggle.textContent = state.isAdmin ? "관리자 종료" : "관리자 로그인";
         resetMenuItem.hidden = !state.isAdmin;
-        uploadMenuItem.hidden = !state.isAdmin || !state.backendConfigured;
+        adminToolbarMeta.hidden = !state.isAdmin;
+        viewerNote.textContent = "편집 내용은 이 브라우저에 자동 저장됩니다.";
         return;
       }}
       appRoot.innerHTML = `
@@ -1537,9 +1255,11 @@ def render_html(
           ${{transportSectionMarkup("dropoff")}}
         </div>
       `;
+      rolePill.textContent = `${{ADMIN_CONFIG.label}} 모드`;
       adminToggle.textContent = state.isAdmin ? "관리자 종료" : "관리자 로그인";
       resetMenuItem.hidden = !state.isAdmin;
-      uploadMenuItem.hidden = !state.isAdmin || !state.backendConfigured;
+      adminToolbarMeta.hidden = !state.isAdmin;
+      viewerNote.textContent = "편집 내용은 이 브라우저에 자동 저장됩니다.";
       if (state.activeModal) {{
         renderModal();
       }}
@@ -1633,31 +1353,6 @@ def render_html(
           <div class="modal-content">
             <button type="button" class="schedule-link" data-action="confirm-export" data-kind="${{kind}}" data-scope="all">전체</button>
             <button type="button" class="schedule-link" data-action="confirm-export" data-kind="${{kind}}" data-scope="vehicle">호차별</button>
-          </div>
-        </div>
-      `;
-    }}
-
-    function renderUploadModal() {{
-      return `
-        <div class="modal-shell narrow">
-          <div class="modal-header">
-            <div><p class="eyebrow">엑셀 업로드</p><h3>엑셀 파일 반영</h3></div>
-            <button type="button" class="modal-close" data-action="close-dialog">닫기</button>
-          </div>
-          <div class="modal-content">
-            <div class="meta-grid">
-              <div>
-                <span>파일</span>
-                <input id="upload-workbook-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
-              </div>
-              <div>
-                <span>업로드한 사람</span>
-                <input id="upload-workbook-by" type="text" placeholder="예: 김은비" />
-              </div>
-            </div>
-            <p class="empty-copy">월별 엑셀을 올리면 같은 달 일정이 DB 원본으로 갱신됩니다.</p>
-            <button type="button" class="primary-button" data-action="submit-upload">업로드</button>
           </div>
         </div>
       `;
@@ -1818,9 +1513,6 @@ def render_html(
       if (state.activeModal.type === "export") {{
         appDialog.innerHTML = renderExportModal(state.activeModal.kind);
       }}
-      if (state.activeModal.type === "upload") {{
-        appDialog.innerHTML = renderUploadModal();
-      }}
       if (state.activeModal.type === "resident-search") {{
         appDialog.innerHTML = renderResidentSearchModal();
       }}
@@ -1868,63 +1560,19 @@ def render_html(
       URL.revokeObjectURL(url);
     }}
 
-    async function uploadWorkbookFromModal() {{
-      if (!state.isAdmin) {{
-        window.alert("관리자 로그인 후 업로드할 수 있습니다.");
-        return;
+    function openPrintPreview() {{
+      const nextUrl = new URL("./print-preview.html", window.location.href);
+      const dateKey = activeDateKey();
+      if (dateKey) {{
+        nextUrl.searchParams.set("date", dateKey);
       }}
-      if (!state.backendConfigured) {{
-        window.alert("업로드 서버 설정이 아직 완료되지 않았습니다.");
-        return;
-      }}
-      const fileInput = document.getElementById("upload-workbook-file");
-      const uploadedByInput = document.getElementById("upload-workbook-by");
-      const file = fileInput?.files?.[0];
-      if (!file) {{
-        window.alert("업로드할 월별 엑셀 파일을 선택해 주세요.");
-        return;
-      }}
-      const formData = new FormData();
-      formData.append("workbook", file);
-      formData.append("uploaded_by", uploadedByInput?.value?.trim() || ADMIN_CONFIG.label);
-      try {{
-        const response = await window.fetch(API_ENDPOINTS.upload, {{
-          method: "POST",
-          headers: {{
-            "X-Bandi-Admin-Hash": getAdminSessionToken(),
-          }},
-          body: formData,
-        }});
-        const rawText = await response.text();
-        let payload = {{}};
-        if (rawText) {{
-          try {{
-            payload = JSON.parse(rawText);
-          }} catch (error) {{
-            payload = {{ error: rawText.trim() }};
-          }}
-        }}
-        if (!response.ok) {{
-          const reason = payload.error || rawText.trim() || `HTTP ${{response.status}}`;
-          window.alert(`엑셀 업로드에 실패했습니다.\n\n${{reason}}`);
-          return;
-        }}
-        await refreshScheduleBundle();
-        activeDate = parseActiveDate();
-        state.mobileSide = defaultMobileSide();
-        await syncScheduleForActiveDate();
-        renderHeroDate();
-        syncDateUrl(true);
-        state.activeModal = null;
-        appDialog.close();
-        renderApp();
-        window.alert(`업로드 반영 완료: ${{payload.month_key || "-"}} (${{payload.updated_dates?.length || 0}}일)`);
-      }} catch (error) {{
-        window.alert(`엑셀 업로드에 실패했습니다.\n\n${{error?.message || "네트워크 연결 또는 서버 응답을 확인해 주세요."}}`);
+      const opened = window.open(nextUrl.toString(), "_blank", "noopener");
+      if (!opened) {{
+        window.location.href = nextUrl.toString();
       }}
     }}
 
-    async function updateAssignmentFromForm(button) {{
+    function updateAssignmentFromForm(button) {{
       const card = button.closest(".vehicle-card");
       if (!card) return;
       const vehicle = findVehicle(button.dataset.vehicle);
@@ -1933,11 +1581,11 @@ def render_html(
       const driver = card.querySelector('[data-field="assignment-driver"]')?.value.trim() || null;
       const companion = card.querySelector('[data-field="assignment-companion"]')?.value.trim() || null;
       vehicle[`${{side}}_assignment`] = {{ driver, companion }};
-      await persistData();
+      persistData();
       renderApp();
     }}
 
-    async function updateEntryFromForm(button) {{
+    function updateEntryFromForm(button) {{
       const card = button.closest(".entry-card");
       if (!card) return;
       const formValues = {{
@@ -1989,7 +1637,7 @@ def render_html(
 
       markOppositeSideAbsentByName(entry.name, side, entry.absent);
 
-      await persistData();
+      persistData();
       renderApp();
     }}
 
@@ -1999,13 +1647,12 @@ def render_html(
     }}
 
     heroDateRow.querySelectorAll("[data-shift-date]").forEach((button) => {{
-      button.addEventListener("click", async () => {{
+      button.addEventListener("click", () => {{
         activeDate.setDate(activeDate.getDate() + Number(button.dataset.shiftDate));
-        state.mobileSide = defaultMobileSide();
         renderHeroDate();
         updateMobileStickyOffset();
         syncDateUrl();
-        await syncScheduleForActiveDate();
+        syncScheduleForActiveDate();
         renderApp();
       }});
     }});
@@ -2032,39 +1679,15 @@ def render_html(
       renderApp();
     }});
 
-    window.addEventListener("popstate", async () => {{
+    window.addEventListener("popstate", () => {{
       activeDate = parseActiveDate();
-      state.mobileSide = defaultMobileSide();
       renderHeroDate();
       updateMobileStickyOffset();
-      await syncScheduleForActiveDate();
+      syncScheduleForActiveDate();
       renderApp();
     }});
 
-    function positionMenuPanel() {{
-      if (!menuPanel || !menuToggle) return;
-      const rect = menuToggle.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const panelWidth = Math.min(248, Math.max(196, viewportWidth - 32));
-      const desiredLeft = Math.max(16, rect.left - panelWidth - 12);
-      const desiredTop = Math.max(16, rect.top + rect.height / 2);
-      menuPanel.style.left = `${{desiredLeft}}px`;
-      menuPanel.style.right = "auto";
-      menuPanel.style.top = `${{desiredTop}}px`;
-      menuPanel.style.width = `${{panelWidth}}px`;
-    }}
-
-    window.addEventListener("resize", () => {{
-      updateMobileStickyOffset();
-      if (menuPanel.classList.contains("is-open")) {{
-        positionMenuPanel();
-      }}
-    }});
-    document.addEventListener("visibilitychange", () => {{
-      if (!document.hidden) {{
-        refreshSharedState();
-      }}
-    }});
+    window.addEventListener("resize", updateMobileStickyOffset);
 
     window.addEventListener("mouseup", (event) => {{
       if (event.button === 3 && window.history.length > 1) {{
@@ -2080,7 +1703,6 @@ def render_html(
     async function toggleAdminMode() {{
       if (state.isAdmin) {{
         state.isAdmin = false;
-        setAdminSessionToken("");
         menuPanel.classList.remove("is-open");
         renderApp();
         return;
@@ -2093,26 +1715,21 @@ def render_html(
         return;
       }}
       state.isAdmin = true;
-      setAdminSessionToken(ADMIN_CONFIG.pinHash);
       menuPanel.classList.remove("is-open");
       renderApp();
     }}
 
     menuToggle.addEventListener("click", (event) => {{
       event.stopPropagation();
-      if (!menuPanel.classList.contains("is-open")) {{
-        positionMenuPanel();
-      }}
       menuPanel.classList.toggle("is-open");
     }});
 
     adminToggle.addEventListener("click", toggleAdminMode);
-    resetMenuItem.addEventListener("click", async () => {{
+    resetMenuItem.addEventListener("click", () => {{
       if (!window.confirm("수정 내용을 초기화하고 원본 상태로 되돌릴까요?")) return;
       const schedule = baseScheduleForDate();
       if (schedule) {{
         localStorage.removeItem(storageKey(schedule));
-        await clearRemoteOverride(activeDateKey());
         state.data = clone(schedule);
       }} else {{
         state.data = null;
@@ -2134,7 +1751,7 @@ def render_html(
     }});
     residentSearchButton.addEventListener("click", openResidentSearch);
 
-    appRoot.addEventListener("click", async (event) => {{
+    appRoot.addEventListener("click", (event) => {{
       const button = event.target.closest("[data-action]");
       if (!button) return;
       const action = button.dataset.action;
@@ -2160,21 +1777,15 @@ def render_html(
         menuPanel.classList.remove("is-open");
         renderModal();
       }}
-      if (action === "open-upload") {{
-        if (!state.isAdmin) {{
-          menuPanel.classList.remove("is-open");
-          window.alert("관리자 로그인 후 업로드할 수 있습니다.");
-          return;
-        }}
-        state.activeModal = {{ type: "upload" }};
+      if (action === "open-print") {{
         menuPanel.classList.remove("is-open");
-        renderModal();
+        openPrintPreview();
       }}
       if (action === "reset-schedule") {{
         resetMenuItem.click();
       }}
       if (action === "save-assignment") {{
-        await updateAssignmentFromForm(button);
+        updateAssignmentFromForm(button);
       }}
     }});
 
@@ -2186,23 +1797,12 @@ def render_html(
         renderModal();
         return;
       }}
-      if (actionButton && actionButton.dataset.action === "open-upload") {{
-        if (!state.isAdmin) {{
-          menuPanel.classList.remove("is-open");
-          window.alert("관리자 로그인 후 업로드할 수 있습니다.");
-          return;
-        }}
-        state.activeModal = {{ type: "upload" }};
-        menuPanel.classList.remove("is-open");
-        renderModal();
-        return;
-      }}
-      if (!event.target.closest(".header-menu") && !event.target.closest("#menu-panel")) {{
+      if (!event.target.closest(".header-menu")) {{
         menuPanel.classList.remove("is-open");
       }}
     }});
 
-    appDialog.addEventListener("click", async (event) => {{
+    appDialog.addEventListener("click", (event) => {{
       const button = event.target.closest("[data-action]");
       if (button && button.dataset.action === "close-dialog") {{
         state.activeModal = null;
@@ -2210,16 +1810,12 @@ def render_html(
         return;
       }}
       if (button && button.dataset.action === "save-entry") {{
-        await updateEntryFromForm(button);
+        updateEntryFromForm(button);
       }}
       if (button && button.dataset.action === "confirm-export") {{
         downloadExport(button.dataset.kind, button.dataset.scope);
         state.activeModal = null;
         appDialog.close();
-        return;
-      }}
-      if (button && button.dataset.action === "submit-upload") {{
-        await uploadWorkbookFromModal();
         return;
       }}
       if (button && button.dataset.action === "open-search-result") {{
@@ -2247,32 +1843,11 @@ def render_html(
       }}
     }});
 
-    async function initializeApp() {{
-      activeDate = parseActiveDate();
-      state.mobileSide = defaultMobileSide();
-      await syncScheduleForActiveDate();
-      renderHeroDate();
-      updateMobileStickyOffset();
-      syncDateUrl(true);
-      renderApp();
-
-      state.backendConfigured = await fetchBackendConfig();
-      ensureSharedRefreshLoop();
-      if (!state.backendConfigured) {{
-        state.remoteBootstrapping = false;
-        renderApp();
-        return;
-      }}
-      await refreshScheduleBundle();
-      await syncScheduleForActiveDate();
-      state.remoteBootstrapping = false;
-      renderHeroDate();
-      updateMobileStickyOffset();
-      syncDateUrl(true);
-      renderApp();
-    }}
-
-    initializeApp();
+    syncScheduleForActiveDate();
+    renderHeroDate();
+    updateMobileStickyOffset();
+    syncDateUrl(true);
+    renderApp();
   </script>
 </body>
 </html>
@@ -2289,13 +1864,6 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     days = schedule_payload["days"]
     month_label = f"{base_date.year}년 {base_date.month}월"
     shuttle_counts = {date_key: parsed["totals"]["pickup"] for date_key, parsed in schedule_bundle.items()}
-    schedule_json = (
-        json.dumps(schedule_bundle, ensure_ascii=False)
-        .replace("&", "\\u0026")
-        .replace("<", "\\u003c")
-        .replace(">", "\\u003e")
-        .replace("</script", "<\\/script")
-    )
     return f"""<!doctype html>
 <html lang="ko">
 <head>
@@ -2325,9 +1893,9 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       background: linear-gradient(180deg, #efe6d8 0%, #f5eee4 40%, #ede3d4 100%);
     }}
     .page-shell {{
-      max-width: 520px;
+      max-width: 1360px;
       margin: 0 auto;
-      padding: 18px 12px 32px;
+      padding: 28px 22px 56px;
     }}
     .site-header,
     .calendar-header,
@@ -2429,25 +1997,12 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       grid-template-columns: repeat(7, minmax(0, 1fr));
       gap: 14px;
     }}
-    .weekday-chip {{
-      min-height: 42px;
-      display: grid;
-      place-items: center;
-      border-radius: 999px;
-      background: rgba(255,255,255,0.72);
-      border: 1px solid rgba(49, 53, 60, 0.08);
-      font-size: 0.84rem;
-      font-weight: 760;
-      color: #6f747d;
-    }}
-    .weekday-chip.is-sunday {{ color: #8a7278; }}
-    .weekday-chip.is-special {{ color: #8a7278; }}
     .day-card {{
-      min-height: 156px;
+      min-height: 178px;
       padding: 16px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 8px;
       border: 1px solid rgba(49, 53, 60, 0.08);
       border-radius: 20px;
       background: #fbf7f0;
@@ -2463,25 +2018,13 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     .day-card.closed {{
       background: #efebe3;
     }}
-    .day-card.empty-slot {{
-      min-height: 0;
-      padding: 0;
-      background: transparent;
-      border: 0;
-      box-shadow: none;
-      cursor: default;
-    }}
     .day-card.selected {{
       border-color: rgba(143,115,92,0.38);
       box-shadow: 0 0 0 2px rgba(143,115,92,0.08), 0 18px 28px rgba(95,79,58,0.18), var(--paper-lift);
     }}
     .day-card.special-day .day-number {{ color: #8a7278; }}
     .day-card.special-day .day-number small {{ color: #988287; }}
-    .day-card.special-day .day-meta {{ color: #8a7278; }}
-    .day-card.special-day .day-note {{ color: #8a7278; }}
     .day-number {{
-      display: block;
-      text-align: center;
       font-family: var(--font-display);
       font-size: 1.68rem;
       font-weight: 660;
@@ -2511,16 +2054,10 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       color: #7a7f87;
     }}
     .day-note.empty {{ opacity: 0.26; }}
-    @media (max-width: 9999px) {{
+    @media (max-width: 900px) {{
       .page-shell {{ padding: 18px 12px 32px; }}
       .calendar-header {{ flex-direction: column; align-items: flex-start; }}
-      .calendar-grid {{ gap: 8px; }}
-      .weekday-chip {{ min-height: 34px; font-size: 0.72rem; }}
-      .day-card {{ min-height: 102px; padding: 10px; border-radius: 16px; }}
-      .day-number {{ font-size: 1.1rem; }}
-      .day-number small {{ display: block; margin: 4px 0 0; font-size: 0.7rem; }}
-      .day-meta {{ font-size: 0.74rem; }}
-      .day-note {{ min-height: 2.2em; padding-top: 8px; font-size: 0.72rem; }}
+      .calendar-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
     }}
   </style>
 </head>
@@ -2537,7 +2074,7 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       <section class="calendar-header">
         <div>
           <p class="eyebrow">월별 셔틀 캘린더</p>
-          <h1 id="calendar-title">{escape(month_label)}</h1>
+          <h1>{escape(month_label)}</h1>
         </div>
         <div class="calendar-controls">
           <select class="month-select" id="month-select"></select>
@@ -2548,15 +2085,8 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       </section>
     </section>
   </main>
-  <script id="calendar-schedules" type="application/json">{schedule_json}</script>
   <script>
-    const API_ENDPOINTS = {{
-      config: "./api/config",
-      schedules: "./api/schedules",
-    }};
-    const initialSchedules = JSON.parse(document.getElementById("calendar-schedules").textContent);
-    const SCHEDULE_BUNDLE_CACHE_KEY = "bandi_shuttle_schedule_bundle_cache_v1";
-    const initialCalendarSeed = {{
+    const calendarData = {{
       months: {json.dumps(months, ensure_ascii=False)},
       days: {json.dumps(days, ensure_ascii=False)},
       shuttleCounts: {json.dumps(shuttle_counts, ensure_ascii=False)},
@@ -2565,130 +2095,7 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     const weekdayNames = ["일", "월", "화", "수", "목", "금", "토"];
     const monthSelect = document.getElementById("month-select");
     const calendarGrid = document.getElementById("calendar-grid");
-    const calendarTitle = document.getElementById("calendar-title");
-    function isValidScheduleData(candidate) {{
-      return Boolean(
-        candidate &&
-        Array.isArray(candidate.vehicles) &&
-        candidate.self_pickup &&
-        Array.isArray(candidate.self_pickup.entries) &&
-        candidate.self_dropoff &&
-        Array.isArray(candidate.self_dropoff.entries) &&
-        candidate.home &&
-        Array.isArray(candidate.home.dropoff_order_cards)
-      );
-    }}
-    function isValidScheduleBundle(candidate) {{
-      return Boolean(
-        candidate &&
-        typeof candidate === "object" &&
-        !Array.isArray(candidate) &&
-        Object.values(candidate).every((value) => isValidScheduleData(value))
-      );
-    }}
-    function loadCachedScheduleBundle() {{
-      try {{
-        const raw = window.localStorage.getItem(SCHEDULE_BUNDLE_CACHE_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        return isValidScheduleBundle(parsed) ? parsed : null;
-      }} catch (_error) {{
-        return null;
-      }}
-    }}
-    function persistScheduleBundleCache(bundle) {{
-      try {{
-        if (!isValidScheduleBundle(bundle)) return;
-        window.localStorage.setItem(SCHEDULE_BUNDLE_CACHE_KEY, JSON.stringify(bundle));
-      }} catch (_error) {{
-      }}
-    }}
-    function daysInMonth(year, month) {{
-      return new Date(year, month, 0).getDate();
-    }}
-    function buildMonthDays(monthKey, metaByDate) {{
-      const [yearText, monthText] = monthKey.split("-");
-      const year = Number(yearText);
-      const month = Number(monthText);
-      const totalDays = daysInMonth(year, month);
-      const days = [];
-      for (let day = 1; day <= totalDays; day += 1) {{
-        const dateKey = `${{yearText}}-${{String(month).padStart(2, "0")}}-${{String(day).padStart(2, "0")}}`;
-        const currentDate = new Date(dateKey + "T12:00:00");
-        const meta = metaByDate[dateKey] || {{}};
-        days.push({{
-          date: dateKey,
-          isHoliday: Boolean(meta.isHoliday),
-          isSundayClosed: currentDate.getDay() === 0,
-          holidayName: meta.holidayName || "",
-          remarks: meta.remarks || "",
-        }});
-      }}
-      return days;
-    }}
-    function buildCalendarDataFromSchedules(bundle, fallbackDays = []) {{
-      const dateKeys = Object.keys(bundle).sort();
-      if (!dateKeys.length) return null;
-      const months = [];
-      const seenMonths = new Set();
-      const days = [];
-      const shuttleCounts = {{}};
-      const metaByDate = Object.fromEntries((fallbackDays || []).map((day) => [day.date, day]));
-      for (const dateKey of dateKeys) {{
-        const currentDate = new Date(dateKey + "T12:00:00");
-        const monthKey = dateKey.slice(0, 7);
-        if (!seenMonths.has(monthKey)) {{
-          seenMonths.add(monthKey);
-          months.push({{ key: monthKey, label: `${{currentDate.getFullYear()}}년 ${{currentDate.getMonth() + 1}}월` }});
-        }}
-        shuttleCounts[dateKey] = bundle[dateKey]?.totals?.pickup ?? null;
-      }}
-      months.forEach((month) => {{
-        days.push(...buildMonthDays(month.key, metaByDate));
-      }});
-      return {{
-        months,
-        days,
-        shuttleCounts,
-        baseDate: dateKeys[dateKeys.length - 1],
-      }};
-    }}
-    let scheduleStore = loadCachedScheduleBundle() || initialSchedules;
-    const calendarData = buildCalendarDataFromSchedules(scheduleStore, initialCalendarSeed.days) || initialCalendarSeed;
-    async function fetchBackendConfig() {{
-      try {{
-        const response = await window.fetch(API_ENDPOINTS.config, {{ cache: "no-store" }});
-        if (!response.ok) return false;
-        const payload = await response.json();
-        return Boolean(payload && payload.configured);
-      }} catch (_error) {{
-        return false;
-      }}
-    }}
-    async function refreshRemoteSchedules() {{
-      const configured = await fetchBackendConfig();
-      if (!configured) return;
-      try {{
-        const response = await window.fetch(API_ENDPOINTS.schedules, {{ cache: "no-store" }});
-        if (!response.ok) return;
-        const payload = await response.json();
-        if (payload && payload.schedules && Object.keys(payload.schedules).length) {{
-          scheduleStore = payload.schedules;
-          persistScheduleBundleCache(scheduleStore);
-          const derived = buildCalendarDataFromSchedules(scheduleStore, calendarData.days);
-          if (derived) {{
-            calendarData.months = derived.months;
-            calendarData.days = derived.days;
-            calendarData.shuttleCounts = derived.shuttleCounts;
-            calendarData.baseDate = derived.baseDate;
-          }}
-        }}
-      }} catch (_error) {{
-      }}
-    }}
-    function availableMonthKeys() {{
-      return calendarData.months.map((month) => month.key);
-    }}
+    const availableMonthKeys = calendarData.months.map((month) => month.key);
 
     function currentSearchParams() {{
       return new URLSearchParams(window.location.search);
@@ -2696,20 +2103,17 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
 
     function resolveActiveMonth() {{
       const requested = currentSearchParams().get("month");
-      if (requested && availableMonthKeys().includes(requested)) return requested;
+      if (requested && availableMonthKeys.includes(requested)) return requested;
       const baseMonth = calendarData.baseDate.slice(0, 7);
-      if (availableMonthKeys().includes(baseMonth)) return baseMonth;
-      return availableMonthKeys()[0] || baseMonth;
+      if (availableMonthKeys.includes(baseMonth)) return baseMonth;
+      return availableMonthKeys[0] || baseMonth;
     }}
 
     function resolveSelectedDate(monthKey) {{
       const requested = currentSearchParams().get("date");
       const monthDays = calendarData.days.filter((day) => day.date.startsWith(monthKey));
       if (requested && monthDays.some((day) => day.date === requested)) return requested;
-      return monthDays.find((day) => calendarData.shuttleCounts[day.date] != null)?.date
-        || monthDays.find((day) => !day.isSundayClosed)?.date
-        || monthDays[0]?.date
-        || calendarData.baseDate;
+      return monthDays.find((day) => !day.isSundayClosed)?.date || monthDays[0]?.date || calendarData.baseDate;
     }}
 
     let activeMonth = resolveActiveMonth();
@@ -2727,10 +2131,6 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
     }}
 
     function renderMonthOptions() {{
-      const activeMonthLabel = calendarData.months.find((month) => month.key === activeMonth)?.label || "{escape(month_label)}";
-      if (calendarTitle) {{
-        calendarTitle.textContent = activeMonthLabel;
-      }}
       monthSelect.innerHTML = calendarData.months
         .map((month) => `<option value="${{month.key}}" ${{month.key === activeMonth ? "selected" : ""}}>${{month.label}}</option>`)
         .join("");
@@ -2738,20 +2138,11 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
 
     function renderCalendar() {{
       const days = calendarData.days.filter((day) => day.date.startsWith(activeMonth));
-      const specialWeekdays = new Set(
-        days
-          .filter((day) => day.isHoliday || day.holidayName || (day.remarks || "").includes("노동절"))
-          .map((day) => new Date(day.date + "T12:00:00").getDay())
-      );
-      const weekdayHeader = weekdayNames
-        .map((weekday, index) => `<div class="weekday-chip ${{index === 0 ? "is-sunday" : ""}} ${{specialWeekdays.has(index) ? "is-special" : ""}}">${{weekday}}</div>`)
-        .join("");
-      const firstWeekday = days.length ? new Date(days[0].date + "T12:00:00").getDay() : 0;
-      const leadingSlots = Array.from({{ length: firstWeekday }}, () => `<div class="day-card empty-slot" aria-hidden="true"></div>`).join("");
-      const dayCards = days
+      calendarGrid.innerHTML = days
         .map((day) => {{
           const currentDate = new Date(day.date + "T12:00:00");
-          const isSpecial = day.isHoliday || day.isSundayClosed || Boolean(day.holidayName) || (day.remarks || "").includes("노동절");
+          const weekday = weekdayNames[currentDate.getDay()];
+          const isSpecial = day.isHoliday || day.isSundayClosed;
           const count = calendarData.shuttleCounts[day.date];
           const note = day.holidayName || day.remarks || "\\u00A0";
           return `
@@ -2760,23 +2151,19 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
               class="day-card ${{day.isSundayClosed ? "closed" : ""}} ${{isSpecial ? "special-day" : ""}} ${{selectedDate === day.date ? "selected" : ""}}"
               data-date="${{day.date}}"
             >
-              <span class="day-number">${{currentDate.getDate()}}</span>
+              <span class="day-number">${{currentDate.getDate()}} <small>${{weekday}}</small></span>
               <span class="day-meta">${{count != null ? `등영 인원 ${{count}}명` : "등영 인원 -"}}</span>
               <span class="day-note ${{note.trim() ? "" : "empty"}}">${{note}}</span>
             </button>
           `;
         }})
         .join("");
-      calendarGrid.innerHTML = weekdayHeader + leadingSlots + dayCards;
     }}
 
     monthSelect.addEventListener("change", (event) => {{
       activeMonth = event.target.value;
       const monthDays = calendarData.days.filter((day) => day.date.startsWith(activeMonth));
-      selectedDate = monthDays.find((day) => calendarData.shuttleCounts[day.date] != null)?.date
-        || monthDays.find((day) => !day.isSundayClosed)?.date
-        || monthDays[0]?.date
-        || selectedDate;
+      selectedDate = monthDays.find((day) => !day.isSundayClosed)?.date || monthDays[0]?.date || selectedDate;
       renderCalendar();
       syncCalendarUrl();
     }});
@@ -2787,7 +2174,7 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       selectedDate = card.dataset.date;
       renderCalendar();
       syncCalendarUrl();
-      window.location.href = `./index.html?date=${{selectedDate}}&nav=1`;
+      window.location.href = `./index.html?date=${{selectedDate}}`;
     }});
 
     window.addEventListener("popstate", () => {{
@@ -2808,22 +2195,538 @@ def render_calendar_html(data: dict, schedule_bundle: dict[str, dict] | None = N
       }}
     }});
 
-    async function initializeCalendar() {{
-      activeMonth = resolveActiveMonth();
-      selectedDate = resolveSelectedDate(activeMonth);
-      renderMonthOptions();
-      renderCalendar();
-      syncCalendarUrl(true);
-      await refreshRemoteSchedules();
-      activeMonth = resolveActiveMonth();
-      selectedDate = resolveSelectedDate(activeMonth);
-      renderMonthOptions();
-      renderCalendar();
-      syncCalendarUrl(true);
-    }}
-
-    initializeCalendar();
+    renderMonthOptions();
+    renderCalendar();
+    syncCalendarUrl(true);
   </script>
+</body>
+</html>
+"""
+
+
+def render_print_preview_html(data: dict) -> str:
+    base_date = derive_base_date(data)
+    weekday_names = ["월", "화", "수", "목", "금", "토", "일"]
+    date_label = f"{base_date.year}년 {base_date.month}월 {base_date.day}일 {weekday_names[base_date.weekday()]}요일"
+    vehicle_order = ["1호차", "2호차", "3호차", "4호차", "5호차", "7호차"]
+    vehicles = sorted(
+        [vehicle for vehicle in data["vehicles"] if vehicle["vehicle_name"] in vehicle_order],
+        key=lambda vehicle: vehicle_order.index(vehicle["vehicle_name"]),
+    )
+    note_texts = [
+        (entry.get("note") or "").strip()
+        for vehicle in vehicles
+        for side_key in ("pickup_rounds", "dropoff_rounds")
+        for round_data in vehicle.get(side_key, [])
+        for entry in round_data.get("entries", [])
+        if (entry.get("note") or "").strip()
+    ]
+    max_note_length = max((len(text) for text in note_texts), default=0)
+    note_column_width_em = max(4.5, min(11.5, max_note_length * 0.88 + 0.6))
+    order_lookup = {
+        card["vehicle_name"]: {"order": index + 1, "minute": card["minute"]}
+        for index, card in enumerate(data["home"].get("dropoff_order_cards", []))
+    }
+    base_departure_time = data.get("dropoff_departure_base_time")
+
+    def display_time(value: str | None) -> str:
+        if not value:
+            return "-"
+        if value == "결석":
+            return value
+        if ":" not in value:
+            return value
+        return format_clock(value)
+
+    def side_title(side: str) -> str:
+        return "등영" if side == "pickup" else "송영"
+
+    def compose_departure_time(minute_value: int | None) -> str:
+        if minute_value is None or not base_departure_time or ":" not in str(base_departure_time):
+            return "출발 시간 미정"
+        hour, _minute = str(base_departure_time).split(":")
+        return f"송영 출발 {int(hour)}:{int(minute_value):02d}"
+
+    def active_entry_count(entries: list[dict]) -> int:
+        return sum(1 for entry in entries if not entry.get("absent"))
+
+    def absent_entry_count(entries: list[dict]) -> int:
+        return sum(1 for entry in entries if entry.get("absent"))
+
+    def entry_markup(entry: dict) -> str:
+        state = "결석" if entry.get("absent") else display_time(entry.get("time"))
+        absent_class = " absent" if entry.get("absent") else ""
+        note_text = escape(entry.get("note") or "")
+        address_text = escape(entry.get("address") or "")
+        detail = (
+            f'<span class="note-slot{" is-empty" if not note_text else ""}"><span class="inline-note">{note_text}</span></span>'
+            f'<span class="addr-text">{address_text or "-"}</span>'
+        )
+        return f"""
+          <li class="manifest-entry{absent_class}">
+            <span class="seq">{entry.get('sequence') or '-'}</span>
+            <span class="name">{escape(entry.get('name') or '-')}</span>
+            <span class="time">{escape(state)}</span>
+            <span class="addr">{detail}</span>
+          </li>
+        """
+
+    def rounds_markup(rounds: list[dict]) -> str:
+        blocks = []
+        for round_data in rounds:
+            entries = "".join(entry_markup(entry) for entry in round_data.get("entries", []))
+            present_count = active_entry_count(round_data.get("entries", []))
+            blocks.append(
+                f"""
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>{round_data.get('round', '-')}차 <span>({present_count}명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    {entries or '<li class="manifest-empty">명단 없음</li>'}
+                  </ul>
+                </section>
+                """
+            )
+        return "".join(blocks) if blocks else '<section class="round-block"><ul class="manifest-list"><li class="manifest-empty">명단 없음</li></ul></section>'
+
+    def side_column(vehicle: dict, side: str) -> str:
+        assignment = vehicle[f"{side}_assignment"]
+        driver = escape(assignment.get("driver") or "-")
+        companion = assignment.get("companion") or ""
+        companion_round = assignment.get("companion_round") or ""
+        companion_label = ""
+        if companion:
+            suffix = f" ({companion_round}차)" if companion_round else ""
+            companion_label = f"<span class='crew-sub'>동승 {escape(companion)}{escape(suffix)}</span>"
+        all_entries = [
+            entry
+            for round_data in vehicle[f"{side}_rounds"]
+            for entry in round_data.get("entries", [])
+        ]
+        present_count = active_entry_count(all_entries)
+        absent_count = absent_entry_count(all_entries)
+        first_entry = next(
+            (
+                entry
+                for round_data in vehicle[f"{side}_rounds"]
+                for entry in round_data.get("entries", [])
+                if not entry.get("absent")
+            ),
+            None,
+        )
+        first_time_label = (
+            str(first_entry.get("time"))
+            if first_entry and ":" in str(first_entry.get("time") or "")
+            else "-"
+        )
+        return f"""
+          <section class="print-column">
+            <header class="column-head {side}">
+              <div class="column-title">
+                <p class="eyebrow">{'Morning Route' if side == 'pickup' else 'Afternoon Route'}</p>
+                <div class="title-line">
+                  <h2>{side_title(side)}</h2>
+                  <span class="title-count">(총 {present_count}명/결석{absent_count}명)</span>
+                  {f"<span class='title-time'>{escape(first_time_label)}</span>" if side == "pickup" else ""}
+                </div>
+              </div>
+            </header>
+            <div class="crew-row">
+              <span class="crew-main">운전자 {driver}</span>
+              {companion_label}
+            </div>
+            <div class="round-stack">
+              {rounds_markup(vehicle[f"{side}_rounds"])}
+            </div>
+          </section>
+        """
+
+    def order_info_markup(vehicle_name: str) -> str:
+        info = order_lookup.get(vehicle_name)
+        if not info:
+            return """
+              <div class="order-panel">
+                <p class="eyebrow">송영 순서</p>
+                <strong>출발 시간 미정</strong>
+                <span>순서 정보 없음</span>
+              </div>
+            """
+        return f"""
+          <div class="order-panel">
+            <p class="eyebrow">송영 순서</p>
+            <strong>{info['order']}번째 출발</strong>
+            <span>{compose_departure_time(info['minute'])}</span>
+          </div>
+        """
+
+    def vehicle_page(vehicle: dict) -> str:
+        return f"""
+          <section class="page vehicle-page">
+            <header class="masthead">
+              <div class="brand">
+                <img src="./logo.png" alt="반디 로고" />
+                <div class="brand-text">
+                  <strong>반디</strong>
+                  <span>{escape(date_label)}</span>
+                </div>
+              </div>
+              <div class="title-block">
+                <h1>등송영 운행표</h1>
+                <em>{escape(vehicle['display_name'])}</em>
+              </div>
+              {order_info_markup(vehicle["vehicle_name"])}
+            </header>
+            <section class="columns">
+              {side_column(vehicle, 'pickup')}
+              {side_column(vehicle, 'dropoff')}
+            </section>
+          </section>
+        """
+
+    page_markup = "".join(vehicle_page(vehicle) for vehicle in vehicles)
+
+    return f"""<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>반디 셔틀 인쇄 프리뷰</title>
+  <style>
+    :root {{
+      --ink: #2f3135;
+      --ink-soft: #6d6f74;
+      --line: #d9d3cb;
+      --paper: #fbf8f2;
+      --panel: #ffffff;
+      --accent: #8f735c;
+      --accent-soft: #efe4d8;
+      --pickup: #eef4eb;
+      --dropoff: #f4eceb;
+      --danger: #b56f61;
+      --font-display: "Avenir Next", "Apple SD Gothic Neo", sans-serif;
+      --font-body: "Pretendard", "Apple SD Gothic Neo", sans-serif;
+      --note-col-width: {note_column_width_em:.2f}em;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      background: #e9e3da;
+      color: var(--ink);
+      font-family: var(--font-body);
+    }}
+    .screen-bar {{
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      background: rgba(251,248,242,0.94);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+    }}
+    .screen-actions {{
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }}
+    .screen-actions button {{
+      min-height: 40px;
+      padding: 0 16px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }}
+    .page {{
+      width: 297mm;
+      min-height: 210mm;
+      margin: 16px auto 32px;
+      padding: 8mm 8mm 6mm;
+      background: var(--paper);
+      box-shadow: 0 18px 34px rgba(62, 44, 22, 0.14);
+      display: flex;
+      flex-direction: column;
+      break-after: page;
+      page-break-after: always;
+    }}
+    .page:last-of-type {{
+      break-after: auto;
+      page-break-after: auto;
+    }}
+    .masthead {{
+      display: grid;
+      grid-template-columns: 166px 1fr 166px;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1.5px solid #cfc6ba;
+    }}
+    .brand {{
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      min-width: 0;
+    }}
+    .brand img {{
+      width: 30px;
+      height: 30px;
+      object-fit: contain;
+    }}
+    .brand-text strong {{
+      display: block;
+      font-family: var(--font-display);
+      font-size: 1rem;
+      letter-spacing: -0.03em;
+    }}
+    .brand-text span {{
+      color: var(--ink-soft);
+      font-size: 0.74rem;
+    }}
+    .title-block {{
+      text-align: center;
+      justify-self: center;
+    }}
+    .title-block h1 {{
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 1.48rem;
+      letter-spacing: -0.05em;
+    }}
+    .title-block em {{
+      display: block;
+      margin-top: 2px;
+      font-style: normal;
+      font-family: var(--font-display);
+      font-size: 0.98rem;
+      color: var(--accent);
+      letter-spacing: -0.03em;
+    }}
+    .order-panel {{
+      min-width: 166px;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.84);
+      text-align: right;
+    }}
+    .order-panel strong {{
+      display: block;
+      font-family: var(--font-display);
+      font-size: 0.88rem;
+      letter-spacing: -0.03em;
+    }}
+    .order-panel span {{
+      display: block;
+      margin-top: 2px;
+      color: var(--danger);
+      font-size: 0.74rem;
+      font-weight: 800;
+    }}
+    .columns {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+      min-height: 0;
+      align-items: stretch;
+      flex: 1 1 auto;
+    }}
+    .print-column {{
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      align-content: stretch;
+      min-height: 0;
+      padding: 8px 9px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+    }}
+    .column-head {{
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 7px;
+      padding: 0 0 5px;
+      border-radius: 12px;
+      border-bottom: 1px solid #ddd4c8;
+      background: transparent;
+    }}
+    .column-head.pickup {{ background: linear-gradient(180deg, var(--pickup), transparent); }}
+    .column-head.dropoff {{ background: linear-gradient(180deg, var(--dropoff), transparent); }}
+    .eyebrow {{
+      margin: 0 0 2px;
+      color: var(--ink-soft);
+      font-size: 0.62rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }}
+    .column-title {{
+      min-width: 0;
+    }}
+    .title-line {{
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      flex-wrap: wrap;
+    }}
+    .column-head h2 {{
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 1rem;
+      letter-spacing: -0.04em;
+    }}
+    .title-count {{
+      font-weight: 800;
+      font-size: 0.76rem;
+      color: var(--ink-soft);
+    }}
+    .title-time {{
+      color: var(--danger);
+      font-size: 0.74rem;
+      font-weight: 800;
+    }}
+    .crew-row {{
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding: 0 0 1px;
+      font-size: 0.84rem;
+    }}
+    .crew-main {{
+      font-weight: 700;
+    }}
+    .crew-sub {{
+      color: var(--ink-soft);
+      font-weight: 650;
+    }}
+    .round-stack {{
+      display: grid;
+      gap: 4px;
+      align-content: start;
+      flex: 1 1 auto;
+    }}
+    .round-block + .round-block {{
+      margin-top: 0;
+    }}
+    .round-head {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 3px 0 2px;
+      font-size: 0.8rem;
+      color: var(--ink-soft);
+    }}
+    .round-head strong {{
+      font-weight: 800;
+    }}
+    .round-head strong span {{
+      color: var(--ink-soft);
+      font-size: 0.78rem;
+      font-weight: 700;
+    }}
+    .manifest-list {{
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 1px;
+    }}
+    .manifest-entry {{
+      display: grid;
+      grid-template-columns: 19px 60px 60px 1fr;
+      gap: 5px;
+      align-items: start;
+      padding: 2px 0;
+      border-top: 1px solid #eee7dd;
+      font-size: 0.8rem;
+      line-height: 1.34;
+    }}
+    .manifest-entry:first-child {{
+      border-top: 1px solid #eee7dd;
+    }}
+    .manifest-entry .seq,
+    .manifest-entry .time {{
+      color: var(--ink-soft);
+      font-weight: 650;
+    }}
+    .manifest-entry .name {{
+      font-weight: 700;
+    }}
+    .manifest-entry .addr {{
+      display: grid;
+      grid-template-columns: var(--note-col-width) minmax(0, 1fr);
+      column-gap: 6px;
+      align-items: start;
+      min-width: 0;
+      color: var(--ink-soft);
+      font-size: 0.74rem;
+    }}
+    .note-slot {{
+      min-width: 0;
+      display: block;
+    }}
+    .note-slot.is-empty {{
+      visibility: hidden;
+    }}
+    .addr-text {{
+      min-width: 0;
+      display: block;
+    }}
+    .manifest-entry.absent .name,
+    .manifest-entry.absent .time,
+    .manifest-entry.absent .addr {{
+      color: #9a8d84;
+      text-decoration: line-through;
+    }}
+    .inline-note {{
+      color: #b56f61;
+      font-size: inherit;
+      font-weight: 700;
+    }}
+    .manifest-empty {{
+      padding: 5px 0;
+      color: var(--ink-soft);
+      font-size: 0.7rem;
+    }}
+    @page {{
+      size: A4 landscape;
+      margin: 4mm;
+    }}
+    @media print {{
+      body {{
+        background: #fff;
+      }}
+      .screen-bar {{
+        display: none;
+      }}
+      .page {{
+        width: auto;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+      }}
+      .columns {{
+        min-height: 0;
+      }}
+    }}
+  </style>
+</head>
+<body>
+  <div class="screen-bar">
+    <strong>인쇄용 프리뷰 초안</strong>
+    <div class="screen-actions">
+      <button type="button" onclick="window.print()">인쇄 / PDF 저장</button>
+    </div>
+  </div>
+  {page_markup}
 </body>
 </html>
 """
@@ -2841,6 +2744,7 @@ def build_webapp(
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(render_html(parsed, schedule_bundle=schedule_bundle, admin_pin=admin_pin, admin_label=admin_label), encoding="utf-8")
     output.with_name("calendar.html").write_text(render_calendar_html(parsed, schedule_bundle=schedule_bundle), encoding="utf-8")
+    output.with_name("print-preview.html").write_text(render_print_preview_html(parsed), encoding="utf-8")
     source_candidates = []
     script_dir = Path(__file__).resolve().parent
     for root in (script_dir, script_dir.parent):

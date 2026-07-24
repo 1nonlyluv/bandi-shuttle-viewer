@@ -1,0 +1,1940 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>반디 셔틀 인쇄 프리뷰</title>
+  <style>
+    :root {
+      --ink: #2f3135;
+      --ink-soft: #6d6f74;
+      --line: #d9d3cb;
+      --paper: #fbf8f2;
+      --panel: #ffffff;
+      --accent: #8f735c;
+      --accent-soft: #efe4d8;
+      --pickup: #eef4eb;
+      --dropoff: #f4eceb;
+      --danger: #b56f61;
+      --font-display: "Avenir Next", "Apple SD Gothic Neo", sans-serif;
+      --font-body: "Pretendard", "Apple SD Gothic Neo", sans-serif;
+      --note-col-width: 9.40em;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #e9e3da;
+      color: var(--ink);
+      font-family: var(--font-body);
+    }
+    .screen-bar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      background: rgba(251,248,242,0.94);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(10px);
+    }
+    .screen-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .screen-actions button {
+      min-height: 40px;
+      padding: 0 16px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #fff;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .page {
+      width: 297mm;
+      min-height: 210mm;
+      margin: 16px auto 32px;
+      padding: 8mm 8mm 6mm;
+      background: var(--paper);
+      box-shadow: 0 18px 34px rgba(62, 44, 22, 0.14);
+      display: flex;
+      flex-direction: column;
+      break-after: page;
+      page-break-after: always;
+    }
+    .page:last-of-type {
+      break-after: auto;
+      page-break-after: auto;
+    }
+    .masthead {
+      display: grid;
+      grid-template-columns: 166px 1fr 166px;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 6px;
+      border-bottom: 1.5px solid #cfc6ba;
+    }
+    .brand {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      min-width: 0;
+    }
+    .brand img {
+      width: 30px;
+      height: 30px;
+      object-fit: contain;
+    }
+    .brand-text strong {
+      display: block;
+      font-family: var(--font-display);
+      font-size: 1rem;
+      letter-spacing: -0.03em;
+    }
+    .brand-text span {
+      color: var(--ink-soft);
+      font-size: 0.74rem;
+    }
+    .title-block {
+      text-align: center;
+      justify-self: center;
+    }
+    .title-block h1 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 1.48rem;
+      letter-spacing: -0.05em;
+    }
+    .title-block em {
+      display: block;
+      margin-top: 2px;
+      font-style: normal;
+      font-family: var(--font-display);
+      font-size: 0.98rem;
+      color: var(--accent);
+      letter-spacing: -0.03em;
+    }
+    .order-panel {
+      min-width: 166px;
+      padding: 6px 8px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.84);
+      text-align: right;
+    }
+    .order-panel strong {
+      display: block;
+      font-family: var(--font-display);
+      font-size: 0.88rem;
+      letter-spacing: -0.03em;
+    }
+    .order-panel span {
+      display: block;
+      margin-top: 2px;
+      color: var(--danger);
+      font-size: 0.74rem;
+      font-weight: 800;
+    }
+    .columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+      min-height: 0;
+      align-items: stretch;
+      flex: 1 1 auto;
+    }
+    .print-column {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      align-content: stretch;
+      min-height: 0;
+      padding: 8px 9px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+    }
+    .column-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 7px;
+      padding: 0 0 5px;
+      border-radius: 12px;
+      border-bottom: 1px solid #ddd4c8;
+      background: transparent;
+    }
+    .column-head.pickup { background: linear-gradient(180deg, var(--pickup), transparent); }
+    .column-head.dropoff { background: linear-gradient(180deg, var(--dropoff), transparent); }
+    .eyebrow {
+      margin: 0 0 2px;
+      color: var(--ink-soft);
+      font-size: 0.62rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .column-title {
+      min-width: 0;
+    }
+    .title-line {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .column-head h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 1rem;
+      letter-spacing: -0.04em;
+    }
+    .title-count {
+      font-weight: 800;
+      font-size: 0.76rem;
+      color: var(--ink-soft);
+    }
+    .title-time {
+      color: var(--danger);
+      font-size: 0.74rem;
+      font-weight: 800;
+    }
+    .crew-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding: 0 0 1px;
+      font-size: 0.84rem;
+    }
+    .crew-main {
+      font-weight: 700;
+    }
+    .crew-sub {
+      color: var(--ink-soft);
+      font-weight: 650;
+    }
+    .round-stack {
+      display: grid;
+      gap: 4px;
+      align-content: start;
+      flex: 1 1 auto;
+    }
+    .round-block + .round-block {
+      margin-top: 0;
+    }
+    .round-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 3px 0 2px;
+      font-size: 0.8rem;
+      color: var(--ink-soft);
+    }
+    .round-head strong {
+      font-weight: 800;
+    }
+    .round-head strong span {
+      color: var(--ink-soft);
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    .manifest-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 1px;
+    }
+    .manifest-entry {
+      display: grid;
+      grid-template-columns: 19px 60px 60px 1fr;
+      gap: 5px;
+      align-items: start;
+      padding: 2px 0;
+      border-top: 1px solid #eee7dd;
+      font-size: 0.8rem;
+      line-height: 1.34;
+    }
+    .manifest-entry:first-child {
+      border-top: 1px solid #eee7dd;
+    }
+    .manifest-entry .seq,
+    .manifest-entry .time {
+      color: var(--ink-soft);
+      font-weight: 650;
+    }
+    .manifest-entry .name {
+      font-weight: 700;
+    }
+    .manifest-entry .addr {
+      display: grid;
+      grid-template-columns: var(--note-col-width) minmax(0, 1fr);
+      column-gap: 6px;
+      align-items: start;
+      min-width: 0;
+      color: var(--ink-soft);
+      font-size: 0.74rem;
+    }
+    .note-slot {
+      min-width: 0;
+      display: block;
+    }
+    .note-slot.is-empty {
+      visibility: hidden;
+    }
+    .addr-text {
+      min-width: 0;
+      display: block;
+    }
+    .manifest-entry.absent .name,
+    .manifest-entry.absent .time,
+    .manifest-entry.absent .addr {
+      color: #9a8d84;
+      text-decoration: line-through;
+    }
+    .inline-note {
+      color: #b56f61;
+      font-size: inherit;
+      font-weight: 700;
+    }
+    .manifest-empty {
+      padding: 5px 0;
+      color: var(--ink-soft);
+      font-size: 0.7rem;
+    }
+    @page {
+      size: A4 landscape;
+      margin: 4mm;
+    }
+    @media print {
+      body {
+        background: #fff;
+      }
+      .screen-bar {
+        display: none;
+      }
+      .page {
+        width: auto;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+      }
+      .columns {
+        min-height: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="screen-bar">
+    <strong>인쇄용 프리뷰 초안</strong>
+    <div class="screen-actions">
+      <button type="button" onclick="window.print()">인쇄 / PDF 저장</button>
+    </div>
+  </div>
+  
+          <section class="page vehicle-page">
+            <header class="masthead">
+              <div class="brand">
+                <img src="./logo.png" alt="반디 로고" />
+                <div class="brand-text">
+                  <strong>반디</strong>
+                  <span>2026년 7월 24일 금요일</span>
+                </div>
+              </div>
+              <div class="title-block">
+                <h1>등송영 운행표</h1>
+                <em>1호차(716호1749)</em>
+              </div>
+              
+          <div class="order-panel">
+            <p class="eyebrow">송영 순서</p>
+            <strong>3번째 출발</strong>
+            <span>송영 출발 16:17</span>
+          </div>
+        
+            </header>
+            <section class="columns">
+              
+          <section class="print-column">
+            <header class="column-head pickup">
+              <div class="column-title">
+                <p class="eyebrow">Morning Route</p>
+                <div class="title-line">
+                  <h2>등영</h2>
+                  <span class="title-count">(총 15명/결석1명)</span>
+                  <span class='title-time'>08:00</span>
+                </div>
+              </div>
+            </header>
+            <div class="crew-row">
+              <span class="crew-main">운전자 정국현</span>
+              
+            </div>
+            <div class="round-stack">
+              
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>1차 <span>(6명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">1</span>
+            <span class="name">조정아</span>
+            <span class="time">8시 00분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">시간확인</span></span><span class="addr-text">물푸레 9단지 905/1304</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">2</span>
+            <span class="name">문필남</span>
+            <span class="time">8시 12분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">동백동 588라온프라이빗테라스파크 115/7호</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">3</span>
+            <span class="name">정영애</span>
+            <span class="time">8시 15분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">백현마을 주공9단지A 2910/1001</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">4</span>
+            <span class="name">방금천</span>
+            <span class="time">8시 16분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">백현마을 주공9단지A 2903/1504</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">5</span>
+            <span class="name">변말임</span>
+            <span class="time">8시 22분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">동백동 610-1 102호</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">6</span>
+            <span class="name">김학순</span>
+            <span class="time">8시 24분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">용인시 기흥구 평촌2로1번길 8-19</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>2차 <span>(4명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">7</span>
+            <span class="name">김갑숙</span>
+            <span class="time">8시 45분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">초당역 주공3단지 5302/506</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">8</span>
+            <span class="name">정현숙</span>
+            <span class="time">8시 48분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎배우자</span></span><span class="addr-text">초당역 주공3단지 5307-401</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">9</span>
+            <span class="name">신양숙</span>
+            <span class="time">8시 50분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">초당역 주공3단지 5309-904</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">10</span>
+            <span class="name">전준활</span>
+            <span class="time">8시 50분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">초당역 주공3단지 5309-904</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>3차 <span>(5명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">11</span>
+            <span class="name">김중옥</span>
+            <span class="time">9시 05분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">물푸레 5단지 502/603</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">12</span>
+            <span class="name">이명숙</span>
+            <span class="time">9시 10분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">물푸레 3단지 329/603</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">13</span>
+            <span class="name">유길자</span>
+            <span class="time">9시 15분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">물푸레 2단지 205/1003</span></span>
+          </li>
+        
+          <li class="manifest-entry absent">
+            <span class="seq">14</span>
+            <span class="name">강정숙</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">하마비마을 동일하이빌1차A 109/504</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">15</span>
+            <span class="name">최봉학</span>
+            <span class="time">9시 35분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">교동마을 신창A 103/1403</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">16</span>
+            <span class="name">김영옥</span>
+            <span class="time">9시 35분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">교동마을 신창A 103/1403</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+            </div>
+          </section>
+        
+              
+          <section class="print-column">
+            <header class="column-head dropoff">
+              <div class="column-title">
+                <p class="eyebrow">Afternoon Route</p>
+                <div class="title-line">
+                  <h2>송영</h2>
+                  <span class="title-count">(총 10명/결석1명)</span>
+                  
+                </div>
+              </div>
+            </header>
+            <div class="crew-row">
+              <span class="crew-main">운전자 정국현</span>
+              <span class='crew-sub'>동승 김중순 (1차)</span>
+            </div>
+            <div class="round-stack">
+              
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>1차 <span>(6명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">1</span>
+            <span class="name">신용성</span>
+            <span class="time">16시 35분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">백현마을 주공7단지A 2703/304</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">2</span>
+            <span class="name">김백윤</span>
+            <span class="time">16시 37분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">백현마을 주공9단지A 2905/203</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">3</span>
+            <span class="name">정영애</span>
+            <span class="time">16시 40분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">댁까지</span></span><span class="addr-text">백현마을 주공9단지A 2910/1001</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">4</span>
+            <span class="name">방금천</span>
+            <span class="time">16시 43분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">댁까지</span></span><span class="addr-text">백현마을 주공9단지A 2903/1504</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">5</span>
+            <span class="name">편정인</span>
+            <span class="time">16시 47분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎자부</span></span><span class="addr-text">호수마을 상록롯데캐슬A 1003/1302</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">6</span>
+            <span class="name">김차남</span>
+            <span class="time">16시 51분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">댁까지</span></span><span class="addr-text">호수마을 상록롯데캐슬A 1005/1804</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>2차 <span>(4명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">7</span>
+            <span class="name">한봉심</span>
+            <span class="time">17시 08분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎자매님</span></span><span class="addr-text">어은목마을 경남아너스빌 4308/2101</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">8</span>
+            <span class="name">송석종</span>
+            <span class="time">17시 10분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎배우자</span></span><span class="addr-text">어은목마을 벽산블루밍 4204/801</span></span>
+          </li>
+        
+          <li class="manifest-entry absent">
+            <span class="seq">9</span>
+            <span class="name">이종이</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎배우자</span></span><span class="addr-text">어은목마을 벽산블루밍 4206/1204</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">10</span>
+            <span class="name">염윤자</span>
+            <span class="time">17시 20분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">댁까지</span></span><span class="addr-text">신동백 서해그랑블 2단지 206/401</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">11</span>
+            <span class="name">이명숙</span>
+            <span class="time">17시 30분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎</span></span><span class="addr-text">물푸레 3단지 329/603</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+            </div>
+          </section>
+        
+            </section>
+          </section>
+        
+          <section class="page vehicle-page">
+            <header class="masthead">
+              <div class="brand">
+                <img src="./logo.png" alt="반디 로고" />
+                <div class="brand-text">
+                  <strong>반디</strong>
+                  <span>2026년 7월 24일 금요일</span>
+                </div>
+              </div>
+              <div class="title-block">
+                <h1>등송영 운행표</h1>
+                <em>2호차(76호1735)</em>
+              </div>
+              
+          <div class="order-panel">
+            <p class="eyebrow">송영 순서</p>
+            <strong>6번째 출발</strong>
+            <span>송영 출발 16:20</span>
+          </div>
+        
+            </header>
+            <section class="columns">
+              
+          <section class="print-column">
+            <header class="column-head pickup">
+              <div class="column-title">
+                <p class="eyebrow">Morning Route</p>
+                <div class="title-line">
+                  <h2>등영</h2>
+                  <span class="title-count">(총 11명/결석2명)</span>
+                  <span class='title-time'>08:05</span>
+                </div>
+              </div>
+            </header>
+            <div class="crew-row">
+              <span class="crew-main">운전자 박정희</span>
+              
+            </div>
+            <div class="round-stack">
+              
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>1차 <span>(3명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">1</span>
+            <span class="name">송석종</span>
+            <span class="time">8시 05분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎배우자</span></span><span class="addr-text">어은목마을 벽산블루밍 4204/801</span></span>
+          </li>
+        
+          <li class="manifest-entry absent">
+            <span class="seq">2</span>
+            <span class="name">이종이</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">어은목마을 벽산블루밍 4206/1204</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">3</span>
+            <span class="name">한봉심</span>
+            <span class="time">8시 14분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">어은목마을 경남아너스빌 4308/2101</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">4</span>
+            <span class="name">유순분</span>
+            <span class="time">8시 18분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎아드님</span></span><span class="addr-text">동백2로 82-25 / 2007호</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>2차 <span>(1명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">5</span>
+            <span class="name">김미자</span>
+            <span class="time">8시 20분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">어은목마을 한라비발디A 4004/1802</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>3차 <span>(6명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">6</span>
+            <span class="name">이건희</span>
+            <span class="time">8시 40분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">스프링카운티자이A 101/1323</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">7</span>
+            <span class="name">이효순</span>
+            <span class="time">8시 41분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">로비</span></span><span class="addr-text">스프링카운티자이A 101/1923</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">8</span>
+            <span class="name">양초자</span>
+            <span class="time">8시 43분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">스프링카운티자이A 202/905</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">9</span>
+            <span class="name">김택호</span>
+            <span class="time">8시 43분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">등영 문자발송</span></span><span class="addr-text">스프링카운티자이A 202/601</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">10</span>
+            <span class="name">우석환</span>
+            <span class="time">8시 43분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">스프링카운티자이A 202/1902</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">11</span>
+            <span class="name">임옥순</span>
+            <span class="time">8시 48분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">스프링카운티자이A 206/405</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>4차 <span>(1명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry absent">
+            <span class="seq">12</span>
+            <span class="name">홍애순</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">시간엄수</span></span><span class="addr-text">금화마을2단지204-104</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">13</span>
+            <span class="name">김일수</span>
+            <span class="time">9시 40분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">구갈로28번길 21-11/한양A 101/706</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+            </div>
+          </section>
+        
+              
+          <section class="print-column">
+            <header class="column-head dropoff">
+              <div class="column-title">
+                <p class="eyebrow">Afternoon Route</p>
+                <div class="title-line">
+                  <h2>송영</h2>
+                  <span class="title-count">(총 9명/결석1명)</span>
+                  
+                </div>
+              </div>
+            </header>
+            <div class="crew-row">
+              <span class="crew-main">운전자 박정희</span>
+              
+            </div>
+            <div class="round-stack">
+              
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>1차 <span>(4명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">1</span>
+            <span class="name">박철진</span>
+            <span class="time">16시 42분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">신동백롯데캐슬 1단지 110/2803</span></span>
+          </li>
+        
+          <li class="manifest-entry absent">
+            <span class="seq">2</span>
+            <span class="name">박간난</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">신동백롯데캐슬 1단지 110/2301</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">3</span>
+            <span class="name">조성희</span>
+            <span class="time">16시 47분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">호수마을 자연앤데시앙 1703/704</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">4</span>
+            <span class="name">변말임</span>
+            <span class="time">16시 54분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎</span></span><span class="addr-text">동백동 610-1 102호</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">5</span>
+            <span class="name">김학순</span>
+            <span class="time">16시 56분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">용인시 기흥구 평촌2로1번길 8-19</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>2차 <span>(5명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">6</span>
+            <span class="name">정태선</span>
+            <span class="time">17시 03분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">성산마을 서해그랑블 3103/203</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">7</span>
+            <span class="name">서영희</span>
+            <span class="time">17시 18분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">상하동 풍림A 104/301(어정로80)</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">8</span>
+            <span class="name">한상호</span>
+            <span class="time">17시 23분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">상하동 대우아파트 102/605</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">9</span>
+            <span class="name">강순연</span>
+            <span class="time">17시 28분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">상하동 쌍용A 314/1503</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">10</span>
+            <span class="name">강진구</span>
+            <span class="time">17시 35분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">삼가동 두산위브3단지 305/1201</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+            </div>
+          </section>
+        
+            </section>
+          </section>
+        
+          <section class="page vehicle-page">
+            <header class="masthead">
+              <div class="brand">
+                <img src="./logo.png" alt="반디 로고" />
+                <div class="brand-text">
+                  <strong>반디</strong>
+                  <span>2026년 7월 24일 금요일</span>
+                </div>
+              </div>
+              <div class="title-block">
+                <h1>등송영 운행표</h1>
+                <em>3호차(75라3559)</em>
+              </div>
+              
+          <div class="order-panel">
+            <p class="eyebrow">송영 순서</p>
+            <strong>4번째 출발</strong>
+            <span>송영 출발 16:18</span>
+          </div>
+        
+            </header>
+            <section class="columns">
+              
+          <section class="print-column">
+            <header class="column-head pickup">
+              <div class="column-title">
+                <p class="eyebrow">Morning Route</p>
+                <div class="title-line">
+                  <h2>등영</h2>
+                  <span class="title-count">(총 11명/결석2명)</span>
+                  <span class='title-time'>08:00</span>
+                </div>
+              </div>
+            </header>
+            <div class="crew-row">
+              <span class="crew-main">운전자 김용숙</span>
+              
+            </div>
+            <div class="round-stack">
+              
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>1차 <span>(6명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">1</span>
+            <span class="name">조성희</span>
+            <span class="time">8시 00분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">호수마을 자연앤데시앙 1703/704</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">2</span>
+            <span class="name">이영남</span>
+            <span class="time">8시 04분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">호수마을 자연앤데시앙 1702/204</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">3</span>
+            <span class="name">정영숙</span>
+            <span class="time">8시 13분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">백현마을 모아미래도2단지A 2503/905</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">4</span>
+            <span class="name">전옥선</span>
+            <span class="time">자가</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">백현마을 모아미래도2단지A 2502/802</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">5</span>
+            <span class="name">신용성</span>
+            <span class="time">8시 20분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎사전전화</span></span><span class="addr-text">백현마을 주공7단지A 2703/304</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">6</span>
+            <span class="name">편정인</span>
+            <span class="time">8시 27분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">호수마을 상록롯데캐슬A 1003/1302</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>2차 <span>(1명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">7</span>
+            <span class="name">김차남</span>
+            <span class="time">8시 28분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">호수마을 상록롯데캐슬A 1005/1804</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>3차 <span>(4명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">8</span>
+            <span class="name">김찬조</span>
+            <span class="time">9시 03분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">보정동 동아솔레시티 103/101</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">9</span>
+            <span class="name">송상근</span>
+            <span class="time">9시 05분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">보정동 동아솔레시티 117/1802</span></span>
+          </li>
+        
+          <li class="manifest-entry absent">
+            <span class="seq">10</span>
+            <span class="name">변우진</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">부재 시 댁에서</span></span><span class="addr-text">보정동 동원로얄듀크 302/1702</span></span>
+          </li>
+        
+          <li class="manifest-entry absent">
+            <span class="seq">11</span>
+            <span class="name">최중붕</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">B1/허리보호대</span></span><span class="addr-text">보정동 동원로얄듀크 311/403</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">12</span>
+            <span class="name">윤인자</span>
+            <span class="time">9시 20분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">죽전동 꽃메마을현대홈타운 432/1804</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">13</span>
+            <span class="name">김백윤</span>
+            <span class="time">9시 27분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">백현마을 주공9단지A 2905/203</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+            </div>
+          </section>
+        
+              
+          <section class="print-column">
+            <header class="column-head dropoff">
+              <div class="column-title">
+                <p class="eyebrow">Afternoon Route</p>
+                <div class="title-line">
+                  <h2>송영</h2>
+                  <span class="title-count">(총 19명/결석1명)</span>
+                  
+                </div>
+              </div>
+            </header>
+            <div class="crew-row">
+              <span class="crew-main">운전자 강현애</span>
+              
+            </div>
+            <div class="round-stack">
+              
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>1차 <span>(6명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">1</span>
+            <span class="name">이영남</span>
+            <span class="time">15시 30분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">정국현T</span></span><span class="addr-text">호수마을 자연앤데시앙 1702/204</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">2</span>
+            <span class="name">조정아</span>
+            <span class="time">15시 33분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">물푸레 9단지 905/1304 (따님댁 331동)</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">3</span>
+            <span class="name">김중옥</span>
+            <span class="time">15시 35분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎</span></span><span class="addr-text">물푸레 5단지 502/603</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">4</span>
+            <span class="name">유길자</span>
+            <span class="time">15시 37분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">물푸레 2단지 205/1003</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">5</span>
+            <span class="name">최봉학</span>
+            <span class="time">15시 55분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">교동마을 신창A 103/1403</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">6</span>
+            <span class="name">김영옥</span>
+            <span class="time">15시 55분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">교동마을 신창A 103/1403</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>2차 <span>(8명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">7</span>
+            <span class="name">김미자</span>
+            <span class="time">16시 30분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">어은목마을 한라비발디A 4004/1802</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">8</span>
+            <span class="name">유순분</span>
+            <span class="time">16시 32분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">아들☎</span></span><span class="addr-text">동백2로 82-25 / 2007호</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">9</span>
+            <span class="name">김애영</span>
+            <span class="time">16시 37분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">1층현관+☎</span></span><span class="addr-text">초당마을 현진에버빌 5202/1501</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">10</span>
+            <span class="name">정기주</span>
+            <span class="time">16시 40분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">댁까지</span></span><span class="addr-text">동백중앙로54번길 25-69 엘가타운209</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">11</span>
+            <span class="name">신양숙</span>
+            <span class="time">16시 44분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">초당역 주공3단지 5309/904</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">12</span>
+            <span class="name">전준활</span>
+            <span class="time">16시 44분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">초당역 주공3단지 5309/904</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">13</span>
+            <span class="name">정현숙</span>
+            <span class="time">16시 46분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎배우자</span></span><span class="addr-text">초당역 주공3단지 5307/401</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">14</span>
+            <span class="name">김갑숙</span>
+            <span class="time">16시 47분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">초당역 주공3단지 5302/506</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>3차 <span>(0명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry absent">
+            <span class="seq">15</span>
+            <span class="name">강정숙</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">하마비마을 동일하이빌1차A 109/504</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>4차 <span>(3명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">16</span>
+            <span class="name">김시정</span>
+            <span class="time">17시 20분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎따님 부재시 문자</span></span><span class="addr-text">마북동 삼거마을삼성래미안1차 106/402</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">17</span>
+            <span class="name">이숙자</span>
+            <span class="time">17시 25분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎집</span></span><span class="addr-text">연원마을삼성명가타운A 108/201</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">18</span>
+            <span class="name">김찬조</span>
+            <span class="time">17시 30분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎</span></span><span class="addr-text">보정동 동아솔레시티 103/101</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>5차 <span>(2명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">19</span>
+            <span class="name">송상근</span>
+            <span class="time">17시 35분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">보정동 동아솔레시티 117/1802</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">20</span>
+            <span class="name">윤인자</span>
+            <span class="time">17시 40분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">출입현관확인</span></span><span class="addr-text">죽전동 꽃메마을현대홈타운 432/1804</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+            </div>
+          </section>
+        
+            </section>
+          </section>
+        
+          <section class="page vehicle-page">
+            <header class="masthead">
+              <div class="brand">
+                <img src="./logo.png" alt="반디 로고" />
+                <div class="brand-text">
+                  <strong>반디</strong>
+                  <span>2026년 7월 24일 금요일</span>
+                </div>
+              </div>
+              <div class="title-block">
+                <h1>등송영 운행표</h1>
+                <em>4호차(76호5003)</em>
+              </div>
+              
+          <div class="order-panel">
+            <p class="eyebrow">송영 순서</p>
+            <strong>5번째 출발</strong>
+            <span>송영 출발 16:19</span>
+          </div>
+        
+            </header>
+            <section class="columns">
+              
+          <section class="print-column">
+            <header class="column-head pickup">
+              <div class="column-title">
+                <p class="eyebrow">Morning Route</p>
+                <div class="title-line">
+                  <h2>등영</h2>
+                  <span class="title-count">(총 6명/결석1명)</span>
+                  <span class='title-time'>08:00</span>
+                </div>
+              </div>
+            </header>
+            <div class="crew-row">
+              <span class="crew-main">운전자 이기찬</span>
+              
+            </div>
+            <div class="round-stack">
+              
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>1차 <span>(4명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">1</span>
+            <span class="name">정태선</span>
+            <span class="time">8시 00분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">성산마을 서해그랑블 3103/203</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">2</span>
+            <span class="name">한상호</span>
+            <span class="time">8시 10분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">상하동 대우아파트 102/605</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">3</span>
+            <span class="name">서영희</span>
+            <span class="time">8시 15분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">사전전화☎</span></span><span class="addr-text">상하동 풍림A 104/301(어정로80)</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">4</span>
+            <span class="name">염윤자</span>
+            <span class="time">8시 18분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">사전전화☎</span></span><span class="addr-text">신동백 서해그랑블 2단지 206/401</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>2차 <span>(2명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">5</span>
+            <span class="name">강진구</span>
+            <span class="time">8시 40분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">어르신☎</span></span><span class="addr-text">삼가동 두산위브3단지 305/1201</span></span>
+          </li>
+        
+          <li class="manifest-entry absent">
+            <span class="seq">6</span>
+            <span class="name">조모선</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">삼가동 힐스테이트 용인포레 105/1903</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">7</span>
+            <span class="name">강순연</span>
+            <span class="time">9시 10분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">부재 시 사위☎</span></span><span class="addr-text">상하동 쌍용A 314/1503</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+            </div>
+          </section>
+        
+              
+          <section class="print-column">
+            <header class="column-head dropoff">
+              <div class="column-title">
+                <p class="eyebrow">Afternoon Route</p>
+                <div class="title-line">
+                  <h2>송영</h2>
+                  <span class="title-count">(총 11명/결석2명)</span>
+                  
+                </div>
+              </div>
+            </header>
+            <div class="crew-row">
+              <span class="crew-main">운전자 이기찬</span>
+              <span class='crew-sub'>동승 오주환 (1차)</span>
+            </div>
+            <div class="round-stack">
+              
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>1차 <span>(7명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">1</span>
+            <span class="name">이건희</span>
+            <span class="time">16시 30분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">스프링카운티자이A 101/1323</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">2</span>
+            <span class="name">양초자</span>
+            <span class="time">16시 32분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">스프링카운티자이A 202/905</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">3</span>
+            <span class="name">김택호</span>
+            <span class="time">16시 35분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">스프링카운티자이A 202/601</span></span>
+          </li>
+        
+          <li class="manifest-entry absent">
+            <span class="seq">4</span>
+            <span class="name">김북순</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎</span></span><span class="addr-text">스프링카운티자이A 207/1307</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">5</span>
+            <span class="name">임옥순</span>
+            <span class="time">16시 40분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎</span></span><span class="addr-text">스프링카운티자이A 206/405</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">6</span>
+            <span class="name">김홍숙</span>
+            <span class="time">16시 42분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">댁까지</span></span><span class="addr-text">스프링카운티자이A 205/204</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">7</span>
+            <span class="name">이효순</span>
+            <span class="time">16시 45분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">스프링카운티자이A 101/1923</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">8</span>
+            <span class="name">강형자</span>
+            <span class="time">16시 49분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎요양보호사</span></span><span class="addr-text">스프링카운티자이A 101/1829</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>2차 <span>(0명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry absent">
+            <span class="seq">9</span>
+            <span class="name">홍애순</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎</span></span><span class="addr-text">금화마을2단지204-104</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>3차 <span>(4명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">10</span>
+            <span class="name">공재학</span>
+            <span class="time">17시 22분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">신갈로124번길 3 삼익A 101/1107</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">11</span>
+            <span class="name">김귀순</span>
+            <span class="time">17시 25분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">신갈동 드림랜드A 102/807</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">12</span>
+            <span class="name">김일수</span>
+            <span class="time">17시 30분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎</span></span><span class="addr-text">구갈로28번길 21-11/한양A 101/706</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">13</span>
+            <span class="name">예순조</span>
+            <span class="time">17시 40분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">댁까지</span></span><span class="addr-text">새천년그린빌2단지A 202/301</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+            </div>
+          </section>
+        
+            </section>
+          </section>
+        
+          <section class="page vehicle-page">
+            <header class="masthead">
+              <div class="brand">
+                <img src="./logo.png" alt="반디 로고" />
+                <div class="brand-text">
+                  <strong>반디</strong>
+                  <span>2026년 7월 24일 금요일</span>
+                </div>
+              </div>
+              <div class="title-block">
+                <h1>등송영 운행표</h1>
+                <em>5호차(219가2466)</em>
+              </div>
+              
+          <div class="order-panel">
+            <p class="eyebrow">송영 순서</p>
+            <strong>1번째 출발</strong>
+            <span>송영 출발 16:15</span>
+          </div>
+        
+            </header>
+            <section class="columns">
+              
+          <section class="print-column">
+            <header class="column-head pickup">
+              <div class="column-title">
+                <p class="eyebrow">Morning Route</p>
+                <div class="title-line">
+                  <h2>등영</h2>
+                  <span class="title-count">(총 7명/결석0명)</span>
+                  <span class='title-time'>08:05</span>
+                </div>
+              </div>
+            </header>
+            <div class="crew-row">
+              <span class="crew-main">운전자 김경애</span>
+              
+            </div>
+            <div class="round-stack">
+              
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>1차 <span>(4명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">1</span>
+            <span class="name">이복순</span>
+            <span class="time">8시 05분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">한보라1로 64번길22번지 삼성래미안 106/704</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">2</span>
+            <span class="name">한호석</span>
+            <span class="time">8시 20분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">지곡동 자봉마을 써니밸리A 111/1701</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">3</span>
+            <span class="name">정기주</span>
+            <span class="time">8시 30분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">앞자리</span></span><span class="addr-text">동백중앙로54번길 25-69 엘가타운209</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">4</span>
+            <span class="name">김애영</span>
+            <span class="time">8시 33분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">초당마을 현진에버빌 5202/1501</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>2차 <span>(3명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">5</span>
+            <span class="name">예순조</span>
+            <span class="time">9시 10분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">새천년그린빌2단지A 202/301</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">6</span>
+            <span class="name">김귀순</span>
+            <span class="time">9시 20분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">신갈동 드림랜드A 102/807</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">7</span>
+            <span class="name">공재학</span>
+            <span class="time">9시 30분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">신갈로124번길 3 삼익A 101/1107</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+            </div>
+          </section>
+        
+              
+          <section class="print-column">
+            <header class="column-head dropoff">
+              <div class="column-title">
+                <p class="eyebrow">Afternoon Route</p>
+                <div class="title-line">
+                  <h2>송영</h2>
+                  <span class="title-count">(총 2명/결석0명)</span>
+                  
+                </div>
+              </div>
+            </header>
+            <div class="crew-row">
+              <span class="crew-main">운전자 신은희</span>
+              
+            </div>
+            <div class="round-stack">
+              
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>1차 <span>(2명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">1</span>
+            <span class="name">한호석</span>
+            <span class="time">16시 30분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">지곡동 자봉마을 써니밸리A 111/1701</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">2</span>
+            <span class="name">이복순</span>
+            <span class="time">16시 40분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎따님</span></span><span class="addr-text">한보라1로 64번길22번지 삼성래미안 106/704</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+            </div>
+          </section>
+        
+            </section>
+          </section>
+        
+          <section class="page vehicle-page">
+            <header class="masthead">
+              <div class="brand">
+                <img src="./logo.png" alt="반디 로고" />
+                <div class="brand-text">
+                  <strong>반디</strong>
+                  <span>2026년 7월 24일 금요일</span>
+                </div>
+              </div>
+              <div class="title-block">
+                <h1>등송영 운행표</h1>
+                <em>7호차(163하3128)</em>
+              </div>
+              
+          <div class="order-panel">
+            <p class="eyebrow">송영 순서</p>
+            <strong>2번째 출발</strong>
+            <span>송영 출발 16:16</span>
+          </div>
+        
+            </header>
+            <section class="columns">
+              
+          <section class="print-column">
+            <header class="column-head pickup">
+              <div class="column-title">
+                <p class="eyebrow">Morning Route</p>
+                <div class="title-line">
+                  <h2>등영</h2>
+                  <span class="title-count">(총 6명/결석2명)</span>
+                  <span class='title-time'>08:05</span>
+                </div>
+              </div>
+            </header>
+            <div class="crew-row">
+              <span class="crew-main">운전자 최재영</span>
+              
+            </div>
+            <div class="round-stack">
+              
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>1차 <span>(2명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">1</span>
+            <span class="name">이숙자</span>
+            <span class="time">8시 05분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">연원마을삼성명가타운A 108/201</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">2</span>
+            <span class="name">김시정</span>
+            <span class="time">8시 10분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">정문으로</span></span><span class="addr-text">마북동 삼거마을삼성래미안1차 106/402</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>2차 <span>(1명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">3</span>
+            <span class="name">박철진</span>
+            <span class="time">8시 42분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">신동백롯데캐슬 1단지 110/2803</span></span>
+          </li>
+        
+          <li class="manifest-entry absent">
+            <span class="seq">4</span>
+            <span class="name">박간난</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">신동백롯데캐슬 1단지 110/2301</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>3차 <span>(2명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">5</span>
+            <span class="name">김선희</span>
+            <span class="time">8시 55분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎+뒷좌석</span></span><span class="addr-text">스프링카운티자이A 101/605</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">6</span>
+            <span class="name">김홍숙</span>
+            <span class="time">8시 57분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">스프링카운티자이A 205/204</span></span>
+          </li>
+        
+          <li class="manifest-entry absent">
+            <span class="seq">7</span>
+            <span class="name">김북순</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">스프링카운티자이A 207/1307</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>4차 <span>(1명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">8</span>
+            <span class="name">강형자</span>
+            <span class="time">9시 20분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">로비에서☎</span></span><span class="addr-text">스프링카운티자이A 101/1829</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+            </div>
+          </section>
+        
+              
+          <section class="print-column">
+            <header class="column-head dropoff">
+              <div class="column-title">
+                <p class="eyebrow">Afternoon Route</p>
+                <div class="title-line">
+                  <h2>송영</h2>
+                  <span class="title-count">(총 5명/결석2명)</span>
+                  
+                </div>
+              </div>
+            </header>
+            <div class="crew-row">
+              <span class="crew-main">운전자 김영숙</span>
+              
+            </div>
+            <div class="round-stack">
+              
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>1차 <span>(4명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">1</span>
+            <span class="name">문순남</span>
+            <span class="time">16시 20분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">동백 중동 879-5</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">2</span>
+            <span class="name">문필남</span>
+            <span class="time">16시 26분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">댁 방향 확인</span></span><span class="addr-text">동백동 588라온프라이빗테라스파크 115/7호</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">3</span>
+            <span class="name">전옥선</span>
+            <span class="time">16시 30분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎</span></span><span class="addr-text">백현마을 모아미래도2단지A 2502/802</span></span>
+          </li>
+        
+          <li class="manifest-entry">
+            <span class="seq">4</span>
+            <span class="name">정영숙</span>
+            <span class="time">16시 32분</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">백현마을 모아미래도2단지A 2503/905</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>2차 <span>(1명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry">
+            <span class="seq">5</span>
+            <span class="name">김선희</span>
+            <span class="time">17시 15분</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">☎+뒷자석</span></span><span class="addr-text">스프링카운티자이A 101/605</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+                <section class="round-block">
+                  <div class="round-head">
+                    <strong>3차 <span>(0명)</span></strong>
+                  </div>
+                  <ul class="manifest-list">
+                    
+          <li class="manifest-entry absent">
+            <span class="seq">6</span>
+            <span class="name">변우진</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot is-empty"><span class="inline-note"></span></span><span class="addr-text">보정동 동원로얄듀크 302/1702</span></span>
+          </li>
+        
+          <li class="manifest-entry absent">
+            <span class="seq">7</span>
+            <span class="name">최중붕</span>
+            <span class="time">결석</span>
+            <span class="addr"><span class="note-slot"><span class="inline-note">배우자☎</span></span><span class="addr-text">보정동 동원로얄듀크 311/403</span></span>
+          </li>
+        
+                  </ul>
+                </section>
+                
+            </div>
+          </section>
+        
+            </section>
+          </section>
+        
+</body>
+</html>
