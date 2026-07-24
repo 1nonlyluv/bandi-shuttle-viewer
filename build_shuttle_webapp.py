@@ -500,13 +500,37 @@ def render_html(
         repeating-linear-gradient(0deg, transparent 0, transparent 10px, rgba(120, 103, 79, 0.012) 10px, rgba(120, 103, 79, 0.012) 11px);
       pointer-events: none;
     }}
-    .top-shell {{ display: grid; gap: 18px; }}
+    .top-shell {{
+      position: relative;
+      display: grid;
+      gap: 12px;
+      padding: 18px 22px 22px;
+      border-radius: var(--radius-xl);
+      border: 1px solid rgba(49, 53, 60, 0.08);
+      background: var(--paper-base);
+      box-shadow: var(--shadow-lg), var(--paper-lift);
+      backdrop-filter: blur(14px);
+      isolation: isolate;
+    }}
+    .top-shell::before {{
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.34), transparent 32%),
+        repeating-linear-gradient(0deg, transparent 0, transparent 10px, rgba(120,103,79,0.012) 10px, rgba(120,103,79,0.012) 11px);
+      pointer-events: none;
+      z-index: 0;
+    }}
+    .top-shell > * {{ position: relative; z-index: 1; }}
     .site-header {{
       display: flex; align-items: center; justify-content: space-between; gap: 18px;
-      margin-bottom: 22px; padding: 16px 20px; border-radius: 999px; background: rgba(250,246,240,0.76);
-      overflow: visible;
-      z-index: 40;
+      margin-bottom: 0; padding: 4px 4px 0; border-radius: 0; background: transparent;
+      border: 0; box-shadow: none; backdrop-filter: none; overflow: visible; z-index: 40;
     }}
+    .site-header::before,
+    .hero-top::before {{ display: none; }}
     .brand, .header-actions, .hero-top > *, .toolbar > *, .transport-section > *, .order-strip-card > *, .vehicle-card > *, .self-card > *, .modal-shell > * {{ position: relative; z-index: 1; }}
     .brand {{ display: inline-flex; align-items: center; gap: 14px; text-decoration: none; color: inherit; }}
     .brand-logo {{ width: 48px; height: 48px; object-fit: contain; }}
@@ -522,14 +546,14 @@ def render_html(
       font-size: 1.2rem; font-weight: 800;
     }}
     .menu-panel {{
-      position: absolute; top: calc(100% + 8px); right: 0; min-width: 168px; padding: 8px;
+      position: fixed; top: var(--menu-top, 72px); right: var(--menu-right, 20px); min-width: 196px; max-width: min(248px, calc(100vw - 24px)); padding: 8px;
       border-radius: 18px; border: 1px solid var(--line); background: rgba(252,248,241,0.98);
-      box-shadow: var(--shadow-md); display: none; z-index: 80;
+      box-shadow: var(--shadow-md); display: none; z-index: 120; overflow: auto;
     }}
     .menu-panel.is-open {{ display: grid; gap: 6px; }}
     .menu-item {{
-      min-height: 40px; padding: 0 12px; border: 1px solid transparent; border-radius: 12px;
-      background: transparent; color: inherit; text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; cursor: pointer;
+      width: 100%; min-height: 40px; padding: 0 12px; border: 1px solid transparent; border-radius: 12px;
+      background: transparent; color: inherit; text-decoration: none; font-weight: 700; display: flex; align-items: center; justify-content: flex-start; text-align: left; cursor: pointer;
     }}
     .menu-item:hover {{ background: rgba(143,115,92,0.08); border-color: var(--line); }}
     .chip-button, .nav-link, .ghost-button, .schedule-link, .self-card, .modal-close, .primary-button, .danger-button, .inline-button {{
@@ -539,7 +563,7 @@ def render_html(
     .chip-button.active {{ background: var(--accent-soft); }}
     .hero, .app-body {{ display: grid; gap: 22px; }}
     .hero {{ position: relative; z-index: 1; }}
-    .hero-top {{ padding: 30px 32px; border-radius: var(--radius-xl); text-align: center; background: rgba(247, 242, 234, 0.84); }}
+    .hero-top {{ padding: 8px 10px 12px; border-radius: 0; text-align: center; background: transparent; border: 0; box-shadow: none; backdrop-filter: none; }}
     .eyebrow {{ margin: 0 0 10px; color: var(--ink-soft); font-size: 0.82rem; font-weight: 740; letter-spacing: 0.18em; text-transform: uppercase; }}
     .hero-title {{ margin: 0; font-size: clamp(1.4rem, 2.2vw, 2rem); line-height: 1.1; }}
     .hero-date-row {{ display: grid; grid-template-columns: 58px auto 58px; align-items: center; justify-content: center; gap: 18px; margin-top: 18px; }}
@@ -643,32 +667,16 @@ def render_html(
         position: sticky;
         top: 12px;
         z-index: 34;
-        gap: 12px;
         padding: 14px 16px 16px;
         border-radius: 28px;
-        border: 1px solid rgba(49, 53, 60, 0.08);
-        background: var(--paper-base);
-        box-shadow: var(--shadow-lg), var(--paper-lift);
-        backdrop-filter: blur(14px);
       }}
-      .top-shell::before {{
-        content: "";
-        position: absolute;
-        inset: 0;
-        background:
-          linear-gradient(180deg, rgba(255,255,255,0.34), transparent 32%),
-          repeating-linear-gradient(0deg, transparent 0, transparent 10px, rgba(120,103,79,0.012) 10px, rgba(120,103,79,0.012) 11px);
-        pointer-events: none;
-      }}
-      .top-shell > * {{ position: relative; z-index: 1; }}
-      .site-header {{ margin-bottom: 0; padding: 0; border-radius: 0; flex-direction: row; align-items: center; background: transparent; box-shadow: none; border: 0; backdrop-filter: none; }}
-      .hero-top {{ padding: 0; border-radius: 0; background: transparent; box-shadow: none; border: 0; backdrop-filter: none; }}
+      .site-header {{ padding: 0; }}
+      .hero-top {{ padding: 0; }}
       .toolbar {{ border-radius: 18px; padding: 8px 10px; align-items: center; margin-top: 4px; }}
       .header-actions {{ width: auto; align-items: flex-end; }}
       .toolbar-group {{ width: 100%; align-items: stretch; }}
       .toolbar-group:last-child {{ gap: 8px; }}
       .header-menu {{ align-self: auto; }}
-      .menu-panel {{ left: 0; right: auto; }}
       .mobile-side-tabs {{ display: flex; width: 100%; }}
       .transport-section, .vehicle-card, .order-strip-card, .modal-shell {{ border-radius: 26px; }}
       .hero-date-row {{ gap: 10px; }}
@@ -796,7 +804,7 @@ def render_html(
             <button type="button" class="primary-button search-button" id="resident-search-button">검색</button>
           </div>
         </div>
-        <div class="toolbar-group" id="admin-toolbar-meta">
+        <div class="toolbar-group" id="admin-toolbar-meta" hidden>
           <div class="role-pill" id="role-pill">뷰어 모드</div>
           <span class="viewer-note">편집은 {escape(admin_label)}만 가능합니다.</span>
         </div>
@@ -1086,6 +1094,15 @@ def render_html(
       }}
     }}
 
+    function positionMenuPanel() {{
+      if (!menuToggle || !menuPanel) return;
+      const rect = menuToggle.getBoundingClientRect();
+      const rightOffset = Math.max(12, window.innerWidth - rect.right);
+      const topOffset = rect.bottom + 8;
+      menuPanel.style.setProperty("--menu-right", `${{rightOffset}}px`);
+      menuPanel.style.setProperty("--menu-top", `${{topOffset}}px`);
+    }}
+
     function escapeHtml(value) {{
       return String(value)
         .replaceAll("&", "&amp;")
@@ -1244,7 +1261,7 @@ def render_html(
         rolePill.textContent = `${{ADMIN_CONFIG.label}} 모드`;
         adminToggle.textContent = state.isAdmin ? "관리자 종료" : "관리자 로그인";
         resetMenuItem.hidden = !state.isAdmin;
-        adminToolbarMeta.hidden = !state.isAdmin;
+        adminToolbarMeta.hidden = true;
         viewerNote.textContent = "편집 내용은 이 브라우저에 자동 저장됩니다.";
         return;
       }}
@@ -1258,7 +1275,7 @@ def render_html(
       rolePill.textContent = `${{ADMIN_CONFIG.label}} 모드`;
       adminToggle.textContent = state.isAdmin ? "관리자 종료" : "관리자 로그인";
       resetMenuItem.hidden = !state.isAdmin;
-      adminToolbarMeta.hidden = !state.isAdmin;
+      adminToolbarMeta.hidden = true;
       viewerNote.textContent = "편집 내용은 이 브라우저에 자동 저장됩니다.";
       if (state.activeModal) {{
         renderModal();
@@ -1684,7 +1701,17 @@ def render_html(
       renderApp();
     }});
 
-    window.addEventListener("resize", updateMobileStickyOffset);
+    window.addEventListener("resize", () => {{
+      updateMobileStickyOffset();
+      if (menuPanel.classList.contains("is-open")) {{
+        positionMenuPanel();
+      }}
+    }});
+    window.addEventListener("scroll", () => {{
+      if (menuPanel.classList.contains("is-open")) {{
+        positionMenuPanel();
+      }}
+    }}, {{ passive: true }});
 
     window.addEventListener("mouseup", (event) => {{
       if (event.button === 3 && window.history.length > 1) {{
@@ -1718,6 +1745,7 @@ def render_html(
 
     menuToggle.addEventListener("click", (event) => {{
       event.stopPropagation();
+      positionMenuPanel();
       menuPanel.classList.toggle("is-open");
     }});
 
