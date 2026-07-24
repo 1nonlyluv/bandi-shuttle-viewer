@@ -840,26 +840,6 @@ def render_html(
     const residentSearchInput = document.getElementById("resident-search");
     const residentSearchButton = document.getElementById("resident-search-button");
     const residentSuggestions = document.getElementById("resident-suggestions");
-    function getAdminSessionToken() {{
-      try {{
-        return window.sessionStorage.getItem("bandi_shuttle_admin_hash") || "";
-      }} catch (_error) {{
-        return "";
-      }}
-    }}
-
-    function setAdminSessionToken(value) {{
-      try {{
-        if (value) {{
-          window.sessionStorage.setItem("bandi_shuttle_admin_hash", value);
-        }} else {{
-          window.sessionStorage.removeItem("bandi_shuttle_admin_hash");
-        }}
-      }} catch (_error) {{
-        // Ignore storage failures and keep admin mode in memory only.
-      }}
-    }}
-
     function loadUploadedSchedules() {{
       try {{
         const raw = window.localStorage.getItem(UPLOADED_SCHEDULES_KEY);
@@ -905,7 +885,7 @@ def render_html(
     let activeDate = parseActiveDate();
     let state = {{
       data: null,
-      isAdmin: getAdminSessionToken() === ADMIN_CONFIG.pinHash,
+      isAdmin: false,
       activeModal: null,
       mobileSide: "pickup",
     }};
@@ -1640,7 +1620,7 @@ def render_html(
         const response = await window.fetch(API_ENDPOINTS.upload, {{
           method: "POST",
           headers: {{
-            "X-Bandi-Admin-Hash": getAdminSessionToken(),
+            "X-Bandi-Admin-Hash": ADMIN_CONFIG.pinHash,
           }},
           body: formData,
         }});
@@ -1869,7 +1849,6 @@ def render_html(
     async function toggleAdminMode() {{
       if (state.isAdmin) {{
         state.isAdmin = false;
-        setAdminSessionToken("");
         menuPanel.classList.remove("is-open");
         renderApp();
         return;
@@ -1882,7 +1861,6 @@ def render_html(
         return;
       }}
       state.isAdmin = true;
-      setAdminSessionToken(hash);
       menuPanel.classList.remove("is-open");
       renderApp();
     }}
