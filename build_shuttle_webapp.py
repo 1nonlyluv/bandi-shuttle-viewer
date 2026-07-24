@@ -513,15 +513,7 @@ def render_html(
       isolation: isolate;
     }}
     .top-shell::before {{
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: inherit;
-      background:
-        linear-gradient(180deg, rgba(255,255,255,0.34), transparent 32%),
-        repeating-linear-gradient(0deg, transparent 0, transparent 10px, rgba(120,103,79,0.012) 10px, rgba(120,103,79,0.012) 11px);
-      pointer-events: none;
-      z-index: 0;
+      display: none;
     }}
     .top-shell > * {{ position: relative; z-index: 1; }}
     .site-header {{
@@ -546,14 +538,14 @@ def render_html(
       font-size: 1.2rem; font-weight: 800;
     }}
     .menu-panel {{
-      position: fixed; top: var(--menu-top, 72px); right: var(--menu-right, 20px); min-width: 196px; max-width: min(248px, calc(100vw - 24px)); padding: 8px;
+      position: fixed; top: var(--menu-top, 72px); left: var(--menu-left, 20px); width: min(264px, calc(100vw - 24px)); padding: 6px;
       border-radius: 18px; border: 1px solid var(--line); background: rgba(252,248,241,0.98);
       box-shadow: var(--shadow-md); display: none; z-index: 120; overflow: auto;
     }}
-    .menu-panel.is-open {{ display: grid; gap: 6px; }}
+    .menu-panel.is-open {{ display: grid; gap: 2px; }}
     .menu-item {{
-      width: 100%; min-height: 40px; padding: 0 12px; border: 1px solid transparent; border-radius: 12px;
-      background: transparent; color: inherit; text-decoration: none; font-weight: 700; display: flex; align-items: center; justify-content: flex-start; text-align: left; cursor: pointer;
+      width: 100%; min-height: 38px; padding: 4px 16px; border: 1px solid transparent; border-radius: 12px;
+      background: transparent; color: inherit; text-decoration: none; font-size: 1.08rem; line-height: 1.15; font-weight: 700; display: flex; align-items: center; justify-content: flex-start; text-align: left; cursor: pointer;
     }}
     .menu-item:hover {{ background: rgba(143,115,92,0.08); border-color: var(--line); }}
     .chip-button, .nav-link, .ghost-button, .schedule-link, .self-card, .modal-close, .primary-button, .danger-button, .inline-button {{
@@ -573,6 +565,7 @@ def render_html(
     .toolbar {{ display: flex; align-items: center; justify-content: center; gap: 16px; padding: 12px 14px; border-radius: var(--radius-lg); }}
     .toolbar-group {{ display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }}
     .toolbar-group.search-group {{ flex: 1 1 620px; min-width: 0; justify-content: center; }}
+    #admin-toolbar-meta[hidden] {{ display: none !important; }}
     .role-pill {{ display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 999px; background: rgba(255,255,255,0.62); border: 1px solid var(--line); font-weight: 700; }}
     .viewer-note {{ color: var(--ink-soft); font-size: 0.92rem; }}
     .search-shell {{ display: flex; gap: 10px; align-items: center; width: min(100%, 720px); min-width: 0; margin: 0 auto; }}
@@ -1097,9 +1090,13 @@ def render_html(
     function positionMenuPanel() {{
       if (!menuToggle || !menuPanel) return;
       const rect = menuToggle.getBoundingClientRect();
-      const rightOffset = Math.max(12, window.innerWidth - rect.right);
-      const topOffset = rect.bottom + 8;
-      menuPanel.style.setProperty("--menu-right", `${{rightOffset}}px`);
+      const panelWidth = menuPanel.offsetWidth || Math.min(264, window.innerWidth - 24);
+      const leftOffset = Math.min(
+        window.innerWidth - panelWidth - 12,
+        Math.max(12, rect.right - panelWidth)
+      );
+      const topOffset = rect.bottom + 6;
+      menuPanel.style.setProperty("--menu-left", `${{leftOffset}}px`);
       menuPanel.style.setProperty("--menu-top", `${{topOffset}}px`);
     }}
 
@@ -1745,8 +1742,11 @@ def render_html(
 
     menuToggle.addEventListener("click", (event) => {{
       event.stopPropagation();
-      positionMenuPanel();
+      const willOpen = !menuPanel.classList.contains("is-open");
       menuPanel.classList.toggle("is-open");
+      if (willOpen) {{
+        requestAnimationFrame(positionMenuPanel);
+      }}
     }});
 
     adminToggle.addEventListener("click", toggleAdminMode);
