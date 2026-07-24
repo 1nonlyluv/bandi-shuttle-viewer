@@ -101,7 +101,7 @@ class handler(BaseHTTPRequestHandler):
                     temp_file.write(file_bytes)
                     temp_path = Path(temp_file.name)
 
-                parsed_sheets = parse_schedule_workbook(temp_path)
+                parsed_sheets = parse_schedule_workbook(temp_path, latest_month_only=True)
                 if not parsed_sheets:
                     return json_response(self, 400, {"error": "등송영표 탭을 찾지 못했습니다."})
 

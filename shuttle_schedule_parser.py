@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 import json
 import re
 import zipfile
@@ -384,6 +385,16 @@ def workbook_sheet_refs(path: Path, *, workbook: zipfile.ZipFile | None = None) 
         return _build_refs(archive)
 
 
+def infer_sheet_date(sheet_name: str) -> date | None:
+    if sheet_match := re.search(r"\((\d{2})\.(\d{1,2})\.(\d{1,2})\)", sheet_name):
+        year, month, day = map(int, sheet_match.groups())
+        return date(2000 + year, month, day)
+    if sheet_match := re.search(r"\((\d{1,2})\.(\d{1,2})\)", sheet_name):
+        month, day = map(int, sheet_match.groups())
+        return date.today().replace(month=month, day=day)
+    return None
+
+
 def detect_layout(sheet: XlsxSheet) -> LayoutConfig:
     if normalize_text(sheet.value("I5", merged=False)) in HEADER_LABELS or sheet.max_col <= col_to_num("N"):
         return COMPACT_LAYOUT
@@ -688,12 +699,24 @@ def parse_schedule(path: str | Path, *, sheet_name: str | None = None, sheet_pat
     return parsed
 
 
-def parse_schedule_workbook(path: str | Path) -> list[dict[str, Any]]:
+def parse_schedule_workbook(path: str | Path, *, month_key: str | None = None, latest_month_only: bool = False) -> list[dict[str, Any]]:
     workbook_path = Path(path)
+    sheet_refs = [(sheet_name, sheet_path) for sheet_name, sheet_path in workbook_sheet_refs(workbook_path) if "등송영표" in sheet_name]
+    if month_key or latest_month_only:
+        inferred_months = []
+        for sheet_name, sheet_path in sheet_refs:
+            inferred_date = infer_sheet_date(sheet_name)
+            if inferred_date is not None:
+                inferred_months.append((sheet_name, sheet_path, inferred_date.strftime("%Y-%m")))
+        target_month_key = month_key
+        if latest_month_only and not target_month_key and inferred_months:
+            target_month_key = max(inferred_months, key=lambda item: item[2])[2]
+        if target_month_key:
+            filtered_refs = [(sheet_name, sheet_path) for sheet_name, sheet_path, inferred_month_key in inferred_months if inferred_month_key == target_month_key]
+            if filtered_refs:
+                sheet_refs = filtered_refs
     parsed_sheets: list[dict[str, Any]] = []
-    for sheet_name, sheet_path in workbook_sheet_refs(workbook_path):
-        if "등송영표" not in sheet_name:
-            continue
+    for sheet_name, sheet_path in sheet_refs:
         parsed_sheets.append(parse_schedule(workbook_path, sheet_name=sheet_name, sheet_path=sheet_path))
     return parsed_sheets
 
