@@ -957,6 +957,10 @@ def render_html(
       state.data = loadPersistedData(baseScheduleForDate());
     }}
 
+    function defaultMobileSide() {{
+      return "pickup";
+    }}
+
     async function fetchUploadedSchedulesForMonth(monthKey) {{
       if (!monthKey) return {{}};
       try {{
