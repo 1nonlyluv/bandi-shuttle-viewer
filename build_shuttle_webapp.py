@@ -1788,11 +1788,18 @@ def render_html(
 
     document.addEventListener("click", (event) => {{
       const actionButton = event.target.closest("[data-action]");
-      if (actionButton && actionButton.dataset.action === "open-export") {{
-        state.activeModal = {{ type: "export", kind: actionButton.dataset.kind }};
-        menuPanel.classList.remove("is-open");
-        renderModal();
-        return;
+      if (actionButton) {{
+        if (actionButton.dataset.action === "open-export") {{
+          state.activeModal = {{ type: "export", kind: actionButton.dataset.kind }};
+          menuPanel.classList.remove("is-open");
+          renderModal();
+          return;
+        }}
+        if (actionButton.dataset.action === "open-print") {{
+          menuPanel.classList.remove("is-open");
+          openPrintPreview();
+          return;
+        }}
       }}
       if (!event.target.closest(".header-menu")) {{
         menuPanel.classList.remove("is-open");
