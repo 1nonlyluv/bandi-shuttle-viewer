@@ -124,9 +124,12 @@ class handler(BaseHTTPRequestHandler):
                         "schedule_json": parsed,
                     }
 
-                schedule_rows = [schedule_row_map[key] for key in sorted(schedule_row_map)]
-
                 primary_month_key = sorted(month_keys)[-1]
+                schedule_rows = [
+                    schedule_row_map[key]
+                    for key in sorted(schedule_row_map)
+                    if schedule_row_map[key]["month_key"] == primary_month_key
+                ]
                 upload_storage_path = storage_path_for(primary_month_key, file_name)
                 encoded_storage_path = "/".join(urllib.parse.quote(part, safe="") for part in upload_storage_path.split("/"))
 
@@ -166,14 +169,13 @@ class handler(BaseHTTPRequestHandler):
                 upload_rows = json.loads(body.decode("utf-8") or "[]")
                 upload_id = upload_rows[0]["id"] if upload_rows else None
 
-                for month_key in month_keys:
-                    status, body = supabase_request(
-                        f"/rest/v1/schedule_days?month_key=eq.{urllib.parse.quote(month_key, safe='')}",
-                        method="DELETE",
-                        headers={"Prefer": "return=minimal"},
-                    )
-                    if status >= 400:
-                        return json_response(self, status, {"error": f"Existing month cleanup failed: {body.decode('utf-8', 'ignore')}"})
+                status, body = supabase_request(
+                    f"/rest/v1/schedule_days?month_key=eq.{urllib.parse.quote(primary_month_key, safe='')}",
+                    method="DELETE",
+                    headers={"Prefer": "return=minimal"},
+                )
+                if status >= 400:
+                    return json_response(self, status, {"error": f"Existing month cleanup failed: {body.decode('utf-8', 'ignore')}"})
 
                 for row in schedule_rows:
                     row["source_upload_id"] = upload_id
