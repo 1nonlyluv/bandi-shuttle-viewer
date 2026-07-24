@@ -8,8 +8,15 @@ module.exports = async (req, res) => {
     return json(res, 200, { schedules: {} });
   }
 
+  const requestUrl = new URL(req.url, "https://bandi-shuttle-viewer.vercel.app");
+  const monthKey = (requestUrl.searchParams.get("month_key") || "").trim();
+  const filters = ["select=date_key,schedule_json", "order=date_key.asc"];
+  if (/^\d{4}-\d{2}$/.test(monthKey)) {
+    filters.push(`month_key=eq.${encodeURIComponent(monthKey)}`);
+  }
+
   const response = await supabaseFetch(
-    "/rest/v1/schedule_days?select=date_key,schedule_json&order=date_key.asc",
+    `/rest/v1/schedule_days?${filters.join("&")}`,
     { method: "GET" }
   );
   if (!response.ok) {

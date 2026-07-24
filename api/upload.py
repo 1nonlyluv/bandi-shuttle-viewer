@@ -198,7 +198,6 @@ class handler(BaseHTTPRequestHandler):
                         "month_key": primary_month_key,
                         "latest_date": latest_date,
                         "updated_dates": [row["date_key"] for row in schedule_rows],
-                        "schedule_map": {row["date_key"]: row["schedule_json"] for row in schedule_rows},
                         "source_file_name": file_name,
                         "collapsed_duplicate_dates": sorted(set(duplicate_dates)),
                     },

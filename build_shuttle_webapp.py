@@ -810,6 +810,7 @@ def render_html(
   <script>
     const ADMIN_CONFIG = {{ label: {json.dumps(admin_label, ensure_ascii=False)}, pinHash: "{admin_pin_hash}" }};
     const API_ENDPOINTS = {{
+      schedules: "./api/schedules",
       upload: "./api/upload",
     }};
     const STAFF_OPTIONS = {{
@@ -954,6 +955,22 @@ def render_html(
 
     function syncScheduleForActiveDate() {{
       state.data = loadPersistedData(baseScheduleForDate());
+    }}
+
+    async function fetchUploadedSchedulesForMonth(monthKey) {{
+      if (!monthKey) return {{}};
+      try {{
+        const requestUrl = new URL(API_ENDPOINTS.schedules, window.location.href);
+        requestUrl.searchParams.set("month_key", monthKey);
+        const response = await window.fetch(requestUrl.toString(), {{ method: "GET" }});
+        if (!response.ok) {{
+          return {{}};
+        }}
+        const payload = await response.json();
+        return payload && payload.schedules && typeof payload.schedules === "object" ? payload.schedules : {{}};
+      }} catch (_error) {{
+        return {{}};
+      }}
     }}
 
     function updateResidentSuggestions() {{
@@ -1638,12 +1655,14 @@ def render_html(
           window.alert(`엑셀 업로드에 실패했습니다.\n\n${{reason}}`);
           return;
         }}
-        const scheduleMap = payload.schedule_map && typeof payload.schedule_map === "object" ? payload.schedule_map : {{}};
+        const scheduleMap = await fetchUploadedSchedulesForMonth(payload.month_key || "");
         Object.entries(scheduleMap).forEach(([dateKey, schedule]) => {{
           uploadedSchedules[dateKey] = schedule;
           clearPersistedStateForSchedule(schedule);
         }});
-        persistUploadedSchedules(uploadedSchedules);
+        if (Object.keys(scheduleMap).length) {{
+          persistUploadedSchedules(uploadedSchedules);
+        }}
         if (payload.latest_date && /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(payload.latest_date)) {{
           activeDate = new Date(payload.latest_date + "T12:00:00");
         }}
