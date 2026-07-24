@@ -2729,11 +2729,15 @@ def render_print_preview_html(data: dict) -> str:
     }}
     @page {{
       size: A4 landscape;
-      margin: 4mm;
+      margin: 2mm;
     }}
     @media print {{
-      body {{
+      html, body {{
+        margin: 0;
+        padding: 0;
         background: #fff;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }}
       .screen-bar {{
         display: none;
@@ -2745,8 +2749,32 @@ def render_print_preview_html(data: dict) -> str:
         padding: 0;
         box-shadow: none;
       }}
+      .masthead {{
+        gap: 6px;
+        padding-bottom: 4px;
+      }}
       .columns {{
+        gap: 6px;
+        margin-top: 6px;
         min-height: 0;
+      }}
+      .print-column {{
+        gap: 4px;
+        padding: 6px 7px;
+      }}
+      .column-head {{
+        gap: 6px;
+        padding: 0 0 4px;
+      }}
+      .round-stack {{
+        gap: 3px;
+      }}
+      .round-head {{
+        gap: 8px;
+        padding: 2px 0 1px;
+      }}
+      .manifest-entry {{
+        padding: 1px 0;
       }}
     }}
   </style>
