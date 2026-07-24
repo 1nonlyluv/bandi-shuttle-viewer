@@ -1566,10 +1566,7 @@ def render_html(
       if (dateKey) {{
         nextUrl.searchParams.set("date", dateKey);
       }}
-      const opened = window.open(nextUrl.toString(), "_blank", "noopener");
-      if (!opened) {{
-        window.location.href = nextUrl.toString();
-      }}
+      window.location.href = nextUrl.toString();
     }}
 
     function updateAssignmentFromForm(button) {{
