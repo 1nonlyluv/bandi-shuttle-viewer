@@ -767,8 +767,9 @@ def render_html(
               <button type="button" class="menu-button" id="menu-toggle" aria-label="메뉴">☰</button>
               <div class="menu-panel" id="menu-panel">
                 <button type="button" class="menu-item" data-action="open-print">인쇄 미리보기</button>
-                <button type="button" class="menu-item" data-action="open-export" data-kind="original">원본 내보내기</button>
-                <button type="button" class="menu-item" data-action="open-export" data-kind="edited">수정본 내보내기</button>
+                <button type="button" class="menu-item" id="upload-menu-item" data-action="open-upload" hidden>엑셀 업로드</button>
+                <button type="button" class="menu-item" id="export-original-menu-item" data-action="open-export" data-kind="original" hidden>원본 내보내기</button>
+                <button type="button" class="menu-item" id="export-edited-menu-item" data-action="open-export" data-kind="edited" hidden>수정본 내보내기</button>
                 <button type="button" class="menu-item" id="reset-menu-item" data-action="reset-schedule" hidden>수정 초기화</button>
                 <button type="button" class="menu-item" id="admin-toggle">관리자 로그인</button>
               </div>
@@ -808,12 +809,16 @@ def render_html(
   <script id="schedule-data" type="application/json">{schedule_json}</script>
   <script>
     const ADMIN_CONFIG = {{ label: {json.dumps(admin_label, ensure_ascii=False)}, pinHash: "{admin_pin_hash}" }};
+    const API_ENDPOINTS = {{
+      upload: "./api/upload",
+    }};
     const STAFF_OPTIONS = {{
       driver: {json.dumps(driver_candidates, ensure_ascii=False)},
       companion: {json.dumps(companion_candidates, ensure_ascii=False)},
     }};
     const RESIDENT_NAMES = {json.dumps(resident_names, ensure_ascii=False)};
     const initialSchedules = JSON.parse(document.getElementById("schedule-data").textContent);
+    const UPLOADED_SCHEDULES_KEY = "bandi_shuttle_uploaded_schedules";
     const weekdayNames = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
     const topShell = document.getElementById("top-shell");
     const brandLink = document.getElementById("brand-link");
@@ -827,11 +832,55 @@ def render_html(
     const adminToolbar = document.getElementById("admin-toolbar");
     const adminToolbarMeta = document.getElementById("admin-toolbar-meta");
     const adminToggle = document.getElementById("admin-toggle");
+    const uploadMenuItem = document.getElementById("upload-menu-item");
+    const exportOriginalMenuItem = document.getElementById("export-original-menu-item");
+    const exportEditedMenuItem = document.getElementById("export-edited-menu-item");
     const resetMenuItem = document.getElementById("reset-menu-item");
     const viewerNote = document.querySelector(".viewer-note");
     const residentSearchInput = document.getElementById("resident-search");
     const residentSearchButton = document.getElementById("resident-search-button");
     const residentSuggestions = document.getElementById("resident-suggestions");
+    function getAdminSessionToken() {{
+      try {{
+        return window.sessionStorage.getItem("bandi_shuttle_admin_hash") || "";
+      }} catch (_error) {{
+        return "";
+      }}
+    }}
+
+    function setAdminSessionToken(value) {{
+      try {{
+        if (value) {{
+          window.sessionStorage.setItem("bandi_shuttle_admin_hash", value);
+        }} else {{
+          window.sessionStorage.removeItem("bandi_shuttle_admin_hash");
+        }}
+      }} catch (_error) {{
+        // Ignore storage failures and keep admin mode in memory only.
+      }}
+    }}
+
+    function loadUploadedSchedules() {{
+      try {{
+        const raw = window.localStorage.getItem(UPLOADED_SCHEDULES_KEY);
+        if (!raw) return {{}};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {{}};
+      }} catch (_error) {{
+        return {{}};
+      }}
+    }}
+
+    function persistUploadedSchedules(schedules) {{
+      try {{
+        window.localStorage.setItem(UPLOADED_SCHEDULES_KEY, JSON.stringify(schedules || {{}}));
+      }} catch (_error) {{
+        // Ignore storage failures and keep uploaded schedules in memory only.
+      }}
+    }}
+
+    const uploadedSchedules = loadUploadedSchedules();
+
     function todayDateKey() {{
       return new Intl.DateTimeFormat("en-CA", {{
         timeZone: "Asia/Seoul",
@@ -856,7 +905,7 @@ def render_html(
     let activeDate = parseActiveDate();
     let state = {{
       data: null,
-      isAdmin: false,
+      isAdmin: getAdminSessionToken() === ADMIN_CONFIG.pinHash,
       activeModal: null,
       mobileSide: "pickup",
     }};
@@ -887,7 +936,7 @@ def render_html(
     }}
 
     function baseScheduleForDate(dateKey = activeDateKey()) {{
-      return dateKey ? initialSchedules[dateKey] || null : null;
+      return dateKey ? uploadedSchedules[dateKey] || initialSchedules[dateKey] || null : null;
     }}
 
     function loadPersistedData(schedule) {{
@@ -905,6 +954,22 @@ def render_html(
     function persistData() {{
       if (!state.data) return;
       localStorage.setItem(storageKey(baseScheduleForDate()), JSON.stringify(state.data));
+    }}
+
+    function clearPersistedStateForSchedule(schedule) {{
+      if (!schedule) return;
+      localStorage.removeItem(storageKey(schedule));
+    }}
+
+    function syncAdminChrome() {{
+      rolePill.textContent = `${{ADMIN_CONFIG.label}} 모드`;
+      adminToggle.textContent = state.isAdmin ? "관리자 종료" : "관리자 로그인";
+      uploadMenuItem.hidden = !state.isAdmin;
+      exportOriginalMenuItem.hidden = !state.isAdmin;
+      exportEditedMenuItem.hidden = !state.isAdmin;
+      resetMenuItem.hidden = !state.isAdmin;
+      adminToolbarMeta.hidden = true;
+      viewerNote.textContent = "편집 내용은 이 브라우저에 자동 저장됩니다.";
     }}
 
     function syncScheduleForActiveDate() {{
@@ -1255,11 +1320,7 @@ def render_html(
             </section>
           </div>
         `;
-        rolePill.textContent = `${{ADMIN_CONFIG.label}} 모드`;
-        adminToggle.textContent = state.isAdmin ? "관리자 종료" : "관리자 로그인";
-        resetMenuItem.hidden = !state.isAdmin;
-        adminToolbarMeta.hidden = true;
-        viewerNote.textContent = "편집 내용은 이 브라우저에 자동 저장됩니다.";
+        syncAdminChrome();
         return;
       }}
       appRoot.innerHTML = `
@@ -1269,11 +1330,7 @@ def render_html(
           ${{transportSectionMarkup("dropoff")}}
         </div>
       `;
-      rolePill.textContent = `${{ADMIN_CONFIG.label}} 모드`;
-      adminToggle.textContent = state.isAdmin ? "관리자 종료" : "관리자 로그인";
-      resetMenuItem.hidden = !state.isAdmin;
-      adminToolbarMeta.hidden = true;
-      viewerNote.textContent = "편집 내용은 이 브라우저에 자동 저장됩니다.";
+      syncAdminChrome();
       if (state.activeModal) {{
         renderModal();
       }}
@@ -1367,6 +1424,31 @@ def render_html(
           <div class="modal-content">
             <button type="button" class="schedule-link" data-action="confirm-export" data-kind="${{kind}}" data-scope="all">전체</button>
             <button type="button" class="schedule-link" data-action="confirm-export" data-kind="${{kind}}" data-scope="vehicle">호차별</button>
+          </div>
+        </div>
+      `;
+    }}
+
+    function renderUploadModal() {{
+      return `
+        <div class="modal-shell narrow">
+          <div class="modal-header">
+            <div><p class="eyebrow">엑셀 업로드</p><h3>월별 운행표 반영</h3></div>
+            <button type="button" class="modal-close" data-action="close-dialog">닫기</button>
+          </div>
+          <div class="modal-content">
+            <div class="meta-grid">
+              <div>
+                <span>파일</span>
+                <input id="upload-workbook-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+              </div>
+              <div>
+                <span>업로드한 사람</span>
+                <input id="upload-workbook-by" type="text" placeholder="예: 김은비" />
+              </div>
+            </div>
+            <p class="empty-copy">엑셀을 올리면 현재 브라우저에 먼저 반영되고, 서버 원본도 함께 갱신됩니다.</p>
+            <button type="button" class="primary-button" data-action="submit-upload">업로드</button>
           </div>
         </div>
       `;
@@ -1527,12 +1609,75 @@ def render_html(
       if (state.activeModal.type === "export") {{
         appDialog.innerHTML = renderExportModal(state.activeModal.kind);
       }}
+      if (state.activeModal.type === "upload") {{
+        appDialog.innerHTML = renderUploadModal();
+      }}
       if (state.activeModal.type === "resident-search") {{
         appDialog.innerHTML = renderResidentSearchModal();
       }}
       appDialog.dataset.sheet = ["schedule", "self", "resident-search"].includes(state.activeModal.type) ? "true" : "false";
       if (!appDialog.open) {{
         appDialog.showModal();
+      }}
+    }}
+
+    async function uploadWorkbookFromModal() {{
+      if (!state.isAdmin) {{
+        window.alert("관리자 로그인 후 업로드할 수 있습니다.");
+        return;
+      }}
+      const fileInput = document.getElementById("upload-workbook-file");
+      const uploadedByInput = document.getElementById("upload-workbook-by");
+      const file = fileInput?.files?.[0];
+      if (!file) {{
+        window.alert("업로드할 월별 엑셀 파일을 선택해 주세요.");
+        return;
+      }}
+      const formData = new FormData();
+      formData.append("workbook", file);
+      formData.append("uploaded_by", uploadedByInput?.value?.trim() || ADMIN_CONFIG.label);
+      try {{
+        const response = await window.fetch(API_ENDPOINTS.upload, {{
+          method: "POST",
+          headers: {{
+            "X-Bandi-Admin-Hash": getAdminSessionToken(),
+          }},
+          body: formData,
+        }});
+        const rawText = await response.text();
+        let payload = {{}};
+        if (rawText) {{
+          try {{
+            payload = JSON.parse(rawText);
+          }} catch (_error) {{
+            payload = {{ error: rawText.trim() }};
+          }}
+        }}
+        if (!response.ok) {{
+          const reason = payload.error || rawText.trim() || `HTTP ${{response.status}}`;
+          window.alert(`엑셀 업로드에 실패했습니다.\n\n${{reason}}`);
+          return;
+        }}
+        const scheduleMap = payload.schedule_map && typeof payload.schedule_map === "object" ? payload.schedule_map : {{}};
+        Object.entries(scheduleMap).forEach(([dateKey, schedule]) => {{
+          uploadedSchedules[dateKey] = schedule;
+          clearPersistedStateForSchedule(schedule);
+        }});
+        persistUploadedSchedules(uploadedSchedules);
+        if (payload.latest_date && /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(payload.latest_date)) {{
+          activeDate = new Date(payload.latest_date + "T12:00:00");
+        }}
+        state.mobileSide = defaultMobileSide();
+        syncScheduleForActiveDate();
+        renderHeroDate();
+        updateMobileStickyOffset();
+        syncDateUrl(true);
+        state.activeModal = null;
+        appDialog.close();
+        renderApp();
+        window.alert(`엑셀 업로드를 반영했습니다.\n${{payload.month_key || "-"}} / ${{payload.updated_dates?.length || 0}}일`);
+      }} catch (error) {{
+        window.alert(`엑셀 업로드에 실패했습니다.\n\n${{error?.message || "네트워크 연결 또는 서버 응답을 확인해 주세요."}}`);
       }}
     }}
 
@@ -1724,6 +1869,7 @@ def render_html(
     async function toggleAdminMode() {{
       if (state.isAdmin) {{
         state.isAdmin = false;
+        setAdminSessionToken("");
         menuPanel.classList.remove("is-open");
         renderApp();
         return;
@@ -1736,6 +1882,7 @@ def render_html(
         return;
       }}
       state.isAdmin = true;
+      setAdminSessionToken(hash);
       menuPanel.classList.remove("is-open");
       renderApp();
     }}
@@ -1802,6 +1949,11 @@ def render_html(
         menuPanel.classList.remove("is-open");
         renderModal();
       }}
+      if (action === "open-upload") {{
+        state.activeModal = {{ type: "upload" }};
+        menuPanel.classList.remove("is-open");
+        renderModal();
+      }}
       if (action === "open-print") {{
         menuPanel.classList.remove("is-open");
         openPrintPreview();
@@ -1817,6 +1969,12 @@ def render_html(
     document.addEventListener("click", (event) => {{
       const actionButton = event.target.closest("[data-action]");
       if (actionButton) {{
+        if (actionButton.dataset.action === "open-upload") {{
+          state.activeModal = {{ type: "upload" }};
+          menuPanel.classList.remove("is-open");
+          renderModal();
+          return;
+        }}
         if (actionButton.dataset.action === "open-export") {{
           state.activeModal = {{ type: "export", kind: actionButton.dataset.kind }};
           menuPanel.classList.remove("is-open");
@@ -1848,6 +2006,10 @@ def render_html(
         downloadExport(button.dataset.kind, button.dataset.scope);
         state.activeModal = null;
         appDialog.close();
+        return;
+      }}
+      if (button && button.dataset.action === "submit-upload") {{
+        uploadWorkbookFromModal();
         return;
       }}
       if (button && button.dataset.action === "open-search-result") {{
