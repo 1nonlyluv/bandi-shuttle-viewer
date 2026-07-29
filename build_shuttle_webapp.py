@@ -877,11 +877,7 @@ def render_html(
       if (raw && /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(raw)) {{
         return new Date(raw + "T12:00:00");
       }}
-      const todayIso = todayDateKey();
-      if (initialSchedules[todayIso]) {{
-        return new Date(todayIso + "T12:00:00");
-      }}
-      return heroDateRow ? new Date(heroDateRow.dataset.baseDate + "T12:00:00") : null;
+      return new Date(todayDateKey() + "T12:00:00");
     }}
 
     let activeDate = parseActiveDate();
