@@ -820,6 +820,7 @@ def render_html(
     const RESIDENT_NAMES = {json.dumps(resident_names, ensure_ascii=False)};
     const initialSchedules = JSON.parse(document.getElementById("schedule-data").textContent);
     const UPLOADED_SCHEDULES_KEY = "bandi_shuttle_uploaded_schedules";
+    const hydratedMonths = new Set();
     const weekdayNames = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
     const topShell = document.getElementById("top-shell");
     const brandLink = document.getElementById("brand-link");
@@ -912,6 +913,11 @@ def render_html(
       return activeDate ? activeDate.toISOString().slice(0, 10) : null;
     }}
 
+    function monthKeyFromDate(value = activeDate) {{
+      if (!value) return "";
+      return `${{value.getFullYear()}}-${{String(value.getMonth() + 1).padStart(2, "0")}}`;
+    }}
+
     function storageKey(schedule) {{
       return "bandi-shuttle-state:" + (schedule?.sheet_name || "schedule") + ":" + ((schedule?.source_file || "").split("/").pop() || "source");
     }}
@@ -968,13 +974,52 @@ def render_html(
         requestUrl.searchParams.set("month_key", monthKey);
         const response = await window.fetch(requestUrl.toString(), {{ method: "GET" }});
         if (!response.ok) {{
-          return {{}};
+          return null;
         }}
         const payload = await response.json();
         return payload && payload.schedules && typeof payload.schedules === "object" ? payload.schedules : {{}};
       }} catch (_error) {{
-        return {{}};
+        return null;
       }}
+    }}
+
+    function applyUploadedSchedulesForMonth(monthKey, scheduleMap, options = {{}}) {{
+      if (!monthKey || !scheduleMap || typeof scheduleMap !== "object") return false;
+      const clearPersisted = options.clearPersisted === true;
+      let changed = false;
+      Object.keys(uploadedSchedules).forEach((dateKey) => {{
+        if (dateKey.startsWith(`${{monthKey}}-`)) {{
+          delete uploadedSchedules[dateKey];
+          changed = true;
+        }}
+      }});
+      Object.entries(scheduleMap).forEach(([dateKey, schedule]) => {{
+        uploadedSchedules[dateKey] = schedule;
+        if (clearPersisted) {{
+          clearPersistedStateForSchedule(schedule);
+        }}
+        changed = true;
+      }});
+      if (changed) {{
+        persistUploadedSchedules(uploadedSchedules);
+      }}
+      hydratedMonths.add(monthKey);
+      return changed;
+    }}
+
+    async function syncServerSchedulesForDate(targetDate = activeDate, options = {{}}) {{
+      const monthKey = monthKeyFromDate(targetDate);
+      if (!monthKey) return false;
+      const force = options.force === true;
+      const clearPersisted = options.clearPersisted === true;
+      if (!force && hydratedMonths.has(monthKey)) {{
+        return false;
+      }}
+      const scheduleMap = await fetchUploadedSchedulesForMonth(monthKey);
+      if (scheduleMap == null) {{
+        return false;
+      }}
+      return applyUploadedSchedulesForMonth(monthKey, scheduleMap, {{ clearPersisted }});
     }}
 
     function updateResidentSuggestions() {{
@@ -1660,12 +1705,8 @@ def render_html(
           return;
         }}
         const scheduleMap = await fetchUploadedSchedulesForMonth(payload.month_key || "");
-        Object.entries(scheduleMap).forEach(([dateKey, schedule]) => {{
-          uploadedSchedules[dateKey] = schedule;
-          clearPersistedStateForSchedule(schedule);
-        }});
-        if (Object.keys(scheduleMap).length) {{
-          persistUploadedSchedules(uploadedSchedules);
+        if (scheduleMap) {{
+          applyUploadedSchedulesForMonth(payload.month_key || "", scheduleMap, {{ clearPersisted: true }});
         }}
         if (payload.latest_date && /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(payload.latest_date)) {{
           activeDate = new Date(payload.latest_date + "T12:00:00");
@@ -1806,11 +1847,12 @@ def render_html(
     }}
 
     heroDateRow.querySelectorAll("[data-shift-date]").forEach((button) => {{
-      button.addEventListener("click", () => {{
+      button.addEventListener("click", async () => {{
         activeDate.setDate(activeDate.getDate() + Number(button.dataset.shiftDate));
         renderHeroDate();
         updateMobileStickyOffset();
         syncDateUrl();
+        await syncServerSchedulesForDate();
         syncScheduleForActiveDate();
         renderApp();
       }});
@@ -1827,6 +1869,7 @@ def render_html(
         renderHeroDate();
         updateMobileStickyOffset();
         syncDateUrl(true);
+        await syncServerSchedulesForDate(activeDate);
         renderApp();
         return;
       }}
@@ -1834,14 +1877,16 @@ def render_html(
       renderHeroDate();
       updateMobileStickyOffset();
       syncDateUrl(true);
+      await syncServerSchedulesForDate(activeDate);
       await syncScheduleForActiveDate();
       renderApp();
     }});
 
-    window.addEventListener("popstate", () => {{
+    window.addEventListener("popstate", async () => {{
       activeDate = parseActiveDate();
       renderHeroDate();
       updateMobileStickyOffset();
+      await syncServerSchedulesForDate(activeDate);
       syncScheduleForActiveDate();
       renderApp();
     }});
@@ -2038,11 +2083,14 @@ def render_html(
       }}
     }});
 
-    syncScheduleForActiveDate();
-    renderHeroDate();
-    updateMobileStickyOffset();
-    syncDateUrl(true);
-    renderApp();
+    (async () => {{
+      await syncServerSchedulesForDate(activeDate);
+      syncScheduleForActiveDate();
+      renderHeroDate();
+      updateMobileStickyOffset();
+      syncDateUrl(true);
+      renderApp();
+    }})();
   </script>
 </body>
 </html>
