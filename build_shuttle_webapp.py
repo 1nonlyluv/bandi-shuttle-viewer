@@ -702,8 +702,11 @@ def render_html(
         overflow-y: auto;
         min-height: 0;
         padding: 0 0 6px;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
         -webkit-overflow-scrolling: touch;
       }}
+      .mobile-section-scroll::-webkit-scrollbar {{ display: none; width: 0; height: 0; }}
       .section-heading {{ display: none; }}
       .section-total.mobile-total {{
         display: inline-flex;
