@@ -452,11 +452,27 @@ def render_html(
       --font-body: "Pretendard", "Apple SD Gothic Neo", "SUIT", sans-serif;
     }}
     * {{ box-sizing: border-box; }}
+    html {{
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }}
+    html::-webkit-scrollbar {{
+      display: none;
+      width: 0;
+      height: 0;
+    }}
     body {{
       margin: 0;
       font-family: var(--font-body);
       color: var(--ink);
       background: linear-gradient(180deg, #efe6d8 0%, #f5eee4 40%, #ede3d4 100%);
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }}
+    body::-webkit-scrollbar {{
+      display: none;
+      width: 0;
+      height: 0;
     }}
     body::before {{
       content: "";
