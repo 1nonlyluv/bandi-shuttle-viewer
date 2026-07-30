@@ -874,10 +874,41 @@ def render_html(
         day: "2-digit",
       }}).format(new Date());
     }}
+
+    function currentHourInSeoul() {{
+      return Number(new Intl.DateTimeFormat("en-GB", {{
+        timeZone: "Asia/Seoul",
+        hour: "2-digit",
+        hourCycle: "h23",
+      }}).format(new Date()));
+    }}
+
+    function shouldHonorInitialUrlDate(rawDate) {{
+      if (!rawDate) return false;
+      try {{
+        if (window.history.state?.date === rawDate) {{
+          return true;
+        }}
+        const navigationEntry = window.performance?.getEntriesByType?.("navigation")?.[0];
+        if (navigationEntry?.type === "back_forward") {{
+          return true;
+        }}
+        if (document.referrer) {{
+          const referrerUrl = new URL(document.referrer);
+          if (referrerUrl.origin === window.location.origin) {{
+            return true;
+          }}
+        }}
+      }} catch (_error) {{
+        // Fall back to opening on today's date.
+      }}
+      return false;
+    }}
+
     function parseActiveDate() {{
       const search = new URLSearchParams(window.location.search);
       const raw = search.get("date");
-      if (raw && /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(raw)) {{
+      if (raw && /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(raw) && shouldHonorInitialUrlDate(raw)) {{
         return new Date(raw + "T12:00:00");
       }}
       return new Date(todayDateKey() + "T12:00:00");
@@ -963,7 +994,7 @@ def render_html(
     }}
 
     function defaultMobileSide() {{
-      return "pickup";
+      return currentHourInSeoul() >= 12 ? "dropoff" : "pickup";
     }}
 
     async function fetchUploadedSchedulesForMonth(monthKey) {{
@@ -2083,6 +2114,7 @@ def render_html(
     }});
 
     (async () => {{
+      state.mobileSide = defaultMobileSide();
       await syncServerSchedulesForDate(activeDate);
       syncScheduleForActiveDate();
       renderHeroDate();
