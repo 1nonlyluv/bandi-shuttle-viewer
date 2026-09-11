@@ -606,7 +606,7 @@ def render_html(
       font-size: 1.2rem; font-weight: 800;
     }}
     .menu-panel {{
-      position: fixed; top: var(--menu-top, 72px); left: var(--menu-left, 20px); width: min(264px, calc(100vw - 24px)); padding: 6px;
+      position: fixed; top: var(--menu-top, 72px); right: var(--menu-right, 20px); width: min(264px, calc(100vw - 24px)); padding: 6px;
       border-radius: 18px; border: 1px solid var(--line); background: rgba(252,248,241,0.98);
       box-shadow: var(--shadow-md); display: none; z-index: 120; overflow: auto;
     }}
@@ -1300,13 +1300,9 @@ def render_html(
     function positionMenuPanel() {{
       if (!menuToggle || !menuPanel) return;
       const rect = menuToggle.getBoundingClientRect();
-      const panelWidth = menuPanel.offsetWidth || Math.min(264, window.innerWidth - 24);
-      const leftOffset = Math.min(
-        window.innerWidth - panelWidth - 12,
-        Math.max(12, rect.right - panelWidth)
-      );
-      const topOffset = rect.bottom + 6;
-      menuPanel.style.setProperty("--menu-left", `${{leftOffset}}px`);
+      const rightOffset = Math.max(0, window.innerWidth - rect.right);
+      const topOffset = rect.bottom;
+      menuPanel.style.setProperty("--menu-right", `${{rightOffset}}px`);
       menuPanel.style.setProperty("--menu-top", `${{topOffset}}px`);
     }}
 
