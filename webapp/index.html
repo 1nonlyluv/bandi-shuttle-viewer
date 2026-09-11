@@ -823,8 +823,12 @@
     function positionMenuPanel() {
       if (!menuToggle || !menuPanel) return;
       const rect = menuToggle.getBoundingClientRect();
-      const rightOffset = Math.max(0, window.innerWidth - rect.right);
-      const topOffset = rect.bottom;
+      const shellRect = topShell?.getBoundingClientRect();
+      // .top-shell uses backdrop-filter, which becomes the containing block
+      // for this fixed panel. Convert the button's viewport position to that
+      // containing block so the panel corner meets the button corner exactly.
+      const rightOffset = Math.max(0, (shellRect?.right ?? window.innerWidth) - rect.right);
+      const topOffset = rect.bottom - (shellRect?.top ?? 0);
       menuPanel.style.setProperty("--menu-right", `${rightOffset}px`);
       menuPanel.style.setProperty("--menu-top", `${topOffset}px`);
     }
