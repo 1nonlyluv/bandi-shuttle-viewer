@@ -1322,6 +1322,9 @@ def render_html(
       const selectedByOthers = new Set();
       state.data.vehicles.forEach((vehicle) => {{
         const assignment = vehicle[`${{side}}_assignment`] || {{ driver: "", companion: "" }};
+        if (role === "driver" && vehicle.vehicle_name !== vehicleName && assignment.driver) {{
+          selectedByOthers.add(assignment.driver);
+        }}
         if (role === "companion" && assignment.driver) {{
           selectedByOthers.add(assignment.driver);
         }}
@@ -1331,7 +1334,7 @@ def render_html(
         names.unshift(currentValue);
       }}
       return [
-        `<option value="" ${{!currentValue ? "selected" : ""}}>선택 안 함</option>`,
+        `<option value="" ${{!currentValue ? "selected" : ""}}>${{role === "driver" ? "선택 미정" : "선택 안 함"}}</option>`,
         ...names.map((name) => `<option value="${{escapeHtml(name)}}" ${{name === currentValue ? "selected" : ""}}>${{escapeHtml(name)}}</option>`),
       ].join("");
     }}
