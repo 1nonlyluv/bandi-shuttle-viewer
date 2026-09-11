@@ -1269,9 +1269,14 @@ def render_html(
     function assignmentOptionsMarkup(role, side, vehicleName, currentValue) {{
       const selectedByOthers = new Set();
       state.data.vehicles.forEach((vehicle) => {{
-        if (vehicle.vehicle_name === vehicleName) return;
-        const assigned = vehicle[`${{side}}_assignment`]?.[role];
-        if (assigned) selectedByOthers.add(assigned);
+        const assignment = vehicle[`${{side}}_assignment`] || {{ driver: "", companion: "" }};
+        if (vehicle.vehicle_name !== vehicleName && assignment[role]) {{
+          selectedByOthers.add(assignment[role]);
+        }}
+        const otherRole = role === "driver" ? "companion" : "driver";
+        if (assignment[otherRole]) {{
+          selectedByOthers.add(assignment[otherRole]);
+        }}
       }});
       const names = STAFF_OPTIONS[role].filter((name) => !selectedByOthers.has(name) || name === currentValue);
       if (currentValue && !names.includes(currentValue)) {{
@@ -1826,6 +1831,19 @@ def render_html(
       if (!vehicle || !side) return;
       const driver = card.querySelector('[data-field="assignment-driver"]')?.value.trim() || null;
       const companion = card.querySelector('[data-field="assignment-companion"]')?.value.trim() || null;
+      if (driver && companion && driver === companion) {{
+        window.alert("운전자와 동승자는 같은 사람으로 배정할 수 없습니다.");
+        return;
+      }}
+      const conflict = state.data.vehicles.some((otherVehicle) => {{
+        if (otherVehicle.vehicle_name === vehicle.vehicle_name) return false;
+        const otherAssignment = otherVehicle[`${{side}}_assignment`] || {{ driver: "", companion: "" }};
+        return (driver && otherAssignment.companion === driver) || (companion && otherAssignment.driver === companion);
+      }});
+      if (conflict) {{
+        window.alert("이미 다른 차량에서 반대 역할로 배정된 직원입니다.");
+        return;
+      }}
       vehicle[`${{side}}_assignment`] = {{ driver, companion }};
       persistData();
       renderApp();
