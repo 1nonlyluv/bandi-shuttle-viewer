@@ -96,6 +96,7 @@ def load_staff_roster() -> list[dict[str, str]]:
                         "status": str(item.get("status") or "").strip(),
                         "can_drive": str(item.get("can_drive") or "").strip(),
                         "can_ride_as_companion": str(item.get("can_ride_as_companion") or "").strip(),
+                        "capability_mode": str(item.get("capability_mode") or "").strip(),
                     }
                 )
             if roster:
@@ -129,6 +130,9 @@ def staff_is_eligible(item: dict[str, str], capability: str, allowed_positions: 
     if not staff_is_active(item):
         return False
     override = item.get(capability, "").strip()
+    if item.get("capability_mode", "").strip() == "strict":
+        required_marker = "운전" if capability == "can_drive" else "동승"
+        return override == required_marker
     if override in {"예", "true", "True", "1"}:
         return True
     if override in {"아니오", "false", "False", "0"}:
