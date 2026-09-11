@@ -1322,9 +1322,6 @@ def render_html(
       const selectedByOthers = new Set();
       state.data.vehicles.forEach((vehicle) => {{
         const assignment = vehicle[`${{side}}_assignment`] || {{ driver: "", companion: "" }};
-        if (vehicle.vehicle_name !== vehicleName && assignment[role]) {{
-          selectedByOthers.add(assignment[role]);
-        }}
         const otherRole = role === "driver" ? "companion" : "driver";
         if (assignment[otherRole]) {{
           selectedByOthers.add(assignment[otherRole]);
