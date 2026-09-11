@@ -1,0 +1,24 @@
+{
+  "source": "셔틀_기본명단.xlsx / 직원 명단",
+  "staff": [
+    {"name": "강선진", "position": "사회복지사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "강현애", "position": "요양보호사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "김경애", "position": "요양보호사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "김계순", "position": "조리원", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "김영숙", "position": "요양보호사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "김용숙", "position": "요양보호사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "김윤자", "position": "간호조무사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "김은비", "position": "사회복지사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "김중순", "position": "요양보호사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "박정희", "position": "요양보호사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "신은희", "position": "요양보호사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "오주환", "position": "요양보호사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "윤승락", "position": "사무원", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "임경호", "position": "요양보호사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "장미란", "position": "시설장(관리책임자)", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "정국현", "position": "요양보호사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "정문조", "position": "요양보호사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "정성진", "position": "사회복지사", "status": "재직", "can_drive": "", "can_ride_as_companion": ""},
+    {"name": "최재영", "position": "대표자", "status": "재직", "can_drive": "", "can_ride_as_companion": ""}
+  ]
+}

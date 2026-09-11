@@ -18,6 +18,7 @@ from shuttle_schedule_parser import parse_schedule, parse_schedule_workbook
 DEFAULT_ADMIN_LABEL = "지정 관리자"
 DEFAULT_ADMIN_PIN = "0066"
 SCHEDULE_JSON_PATH = Path(__file__).resolve().parent.parent / "src" / "data" / "generated" / "schedule.json"
+STAFF_ROSTER_PATH = Path(__file__).resolve().parent / "shuttle_staff_roster.json"
 DRIVER_POSITIONS = {"요양보호사", "사무원", "대표"}
 COMPANION_POSITIONS = {"요양보호사", "요양팀장", "사회복지사"}
 EXCLUDED_DRIVERS = {"김중순"}
@@ -77,6 +78,31 @@ def derive_base_date(parsed: dict) -> date:
 
 
 def load_staff_roster() -> list[dict[str, str]]:
+    try:
+        master_payload = json.loads(STAFF_ROSTER_PATH.read_text(encoding="utf-8"))
+        master_staff = master_payload.get("staff", [])
+        if isinstance(master_staff, list):
+            roster = []
+            for item in master_staff:
+                if not isinstance(item, dict):
+                    continue
+                name = str(item.get("name") or "").strip()
+                if not name:
+                    continue
+                roster.append(
+                    {
+                        "name": name,
+                        "position": str(item.get("position") or "").strip(),
+                        "status": str(item.get("status") or "").strip(),
+                        "can_drive": str(item.get("can_drive") or "").strip(),
+                        "can_ride_as_companion": str(item.get("can_ride_as_companion") or "").strip(),
+                    }
+                )
+            if roster:
+                return roster
+    except (OSError, json.JSONDecodeError):
+        pass
+
     if not SCHEDULE_JSON_PATH.exists():
         return DEFAULT_STAFF_ROSTER
     try:
@@ -93,6 +119,22 @@ def load_staff_roster() -> list[dict[str, str]]:
                 if name and name not in seen:
                     seen[name] = {"name": name, "position": position}
     return sorted(seen.values(), key=lambda item: item["name"]) or DEFAULT_STAFF_ROSTER
+
+
+def staff_is_active(item: dict[str, str]) -> bool:
+    return item.get("status", "").strip() not in {"퇴직", "휴직", "중지", "보관", "archived", "inactive"}
+
+
+def staff_is_eligible(item: dict[str, str], capability: str, allowed_positions: set[str]) -> bool:
+    if not staff_is_active(item):
+        return False
+    override = item.get(capability, "").strip()
+    if override in {"예", "true", "True", "1"}:
+        return True
+    if override in {"아니오", "false", "False", "0"}:
+        return False
+    position = item.get("position", "").strip()
+    return position in allowed_positions or (capability == "can_drive" and position == "대표자")
 
 
 def load_schedule_calendar_payload(base_date: date) -> dict[str, object]:
@@ -401,9 +443,15 @@ def render_html(
     admin_pin_hash = hashlib.sha256(admin_pin.encode("utf-8")).hexdigest()
     staff_roster = load_staff_roster()
     driver_candidates = [
-        item["name"] for item in staff_roster if item["position"] in DRIVER_POSITIONS and item["name"] not in EXCLUDED_DRIVERS
+        item["name"]
+        for item in staff_roster
+        if staff_is_eligible(item, "can_drive", DRIVER_POSITIONS) and item["name"] not in EXCLUDED_DRIVERS
     ]
-    companion_candidates = [item["name"] for item in staff_roster if item["position"] in COMPANION_POSITIONS]
+    companion_candidates = [
+        item["name"]
+        for item in staff_roster
+        if staff_is_eligible(item, "can_ride_as_companion", COMPANION_POSITIONS)
+    ]
     if schedule_bundle is None:
         schedule_bundle = {base_date.isoformat(): data}
     base_date = latest_schedule_date(schedule_bundle, base_date)
