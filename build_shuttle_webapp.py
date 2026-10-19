@@ -12,7 +12,7 @@ import shutil
 import unicodedata
 import zipfile
 
-from shuttle_schedule_parser import parse_schedule, parse_schedule_workbook
+from shuttle_schedule_parser import VEHICLE_METADATA, parse_schedule, parse_schedule_workbook
 
 
 DEFAULT_ADMIN_LABEL = "지정 관리자"
@@ -890,6 +890,7 @@ def render_html(
       companion: {json.dumps(companion_candidates, ensure_ascii=False)},
     }};
     const RESIDENT_NAMES = {json.dumps(resident_names, ensure_ascii=False)};
+    const VEHICLE_INFO_UPDATES = {json.dumps({name: {key: VEHICLE_METADATA[name][key] for key in keys} for name, keys in {"3호차": ("insurance_company", "insurance_phone"), "5호차": ("display_name", "vehicle_number", "insurance_company", "insurance_phone"), "7호차": ("display_name", "vehicle_number", "insurance_company", "insurance_phone")}.items()}, ensure_ascii=False)};
     const initialSchedules = JSON.parse(document.getElementById("schedule-data").textContent);
     const UPLOADED_SCHEDULES_KEY = "bandi_shuttle_uploaded_schedules";
     const hydratedMonths = new Set();
@@ -1025,15 +1026,25 @@ def render_html(
       return dateKey ? uploadedSchedules[dateKey] || initialSchedules[dateKey] || null : null;
     }}
 
+    function applyCurrentVehicleInfo(schedule) {{
+      if (!schedule) return schedule;
+      // Stored and server schedules can predate the current vehicle information.
+      // Only update the requested fields; preserve all schedule edits.
+      const updateVehicle = (vehicle) => Object.assign(vehicle, VEHICLE_INFO_UPDATES[vehicle.vehicle_name] || {{}});
+      schedule.vehicles.forEach(updateVehicle);
+      (schedule.home?.dropoff_order_cards || []).forEach(updateVehicle);
+      return schedule;
+    }}
+
     function loadPersistedData(schedule) {{
       if (!schedule) return null;
       const saved = localStorage.getItem(storageKey(schedule));
-      if (!saved) return clone(schedule);
+      if (!saved) return applyCurrentVehicleInfo(clone(schedule));
       try {{
         const parsed = JSON.parse(saved);
-        return isValidScheduleData(parsed) ? parsed : clone(schedule);
+        return applyCurrentVehicleInfo(isValidScheduleData(parsed) ? parsed : clone(schedule));
       }} catch (_error) {{
-        return clone(schedule);
+        return applyCurrentVehicleInfo(clone(schedule));
       }}
     }}
 

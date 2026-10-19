@@ -413,6 +413,7 @@
       companion: ["강선진", "강현애", "김경애", "김영숙", "김용숙", "김은비", "김중순", "박정희", "신은희", "오주환", "윤승락", "임경호", "정국현", "정문조", "정성진"],
     };
     const RESIDENT_NAMES = ["강순연", "강진구", "강형자", "공재학", "김갑숙", "김경래", "김귀순", "김미자", "김백윤", "김시정", "김심순", "김애영", "김영옥", "김영춘", "김일수", "김일순", "김재형", "김중옥", "김진호", "김찬조", "김학순", "김홍숙", "문순남", "문필남", "박간난", "박동훈", "박수암", "박철진", "방금천", "변말임", "변우진", "서영희", "송상근", "송석종", "신양숙", "신용성", "양초자", "염윤자", "예순조", "우석환", "유길자", "유순분", "유재순", "유향연", "윤인자", "이건희", "이기본", "이막분", "이명숙", "이복순", "이숙자", "이영남", "이영숙", "이옥수", "이종이", "이효순", "임옥순", "임혜자", "전기화", "전옥선", "전준활", "정기주", "정영숙", "정영애", "정태선", "정현숙", "조모선", "조성희", "조영희", "조정아", "차의로", "최봉학", "최중붕", "편정인", "한봉심", "한상호", "한호석"];
+    const VEHICLE_INFO_UPDATES = {"3호차": {"insurance_company": "현대해상", "insurance_phone": "1588-5656"}, "5호차": {"display_name": "5호차(163하3128)", "vehicle_number": "163하3128", "insurance_company": "BNK캐피탈", "insurance_phone": "1644-2254"}, "7호차": {"display_name": "7호차(154주6709)", "vehicle_number": "154주6709", "insurance_company": "현대해상", "insurance_phone": "1588-5656"}};
     const initialSchedules = JSON.parse(document.getElementById("schedule-data").textContent);
     const UPLOADED_SCHEDULES_KEY = "bandi_shuttle_uploaded_schedules";
     const hydratedMonths = new Set();
@@ -548,15 +549,25 @@
       return dateKey ? uploadedSchedules[dateKey] || initialSchedules[dateKey] || null : null;
     }
 
+    function applyCurrentVehicleInfo(schedule) {
+      if (!schedule) return schedule;
+      // Stored and server schedules can predate the current vehicle information.
+      // Only update the requested fields; preserve all schedule edits.
+      const updateVehicle = (vehicle) => Object.assign(vehicle, VEHICLE_INFO_UPDATES[vehicle.vehicle_name] || {});
+      schedule.vehicles.forEach(updateVehicle);
+      (schedule.home?.dropoff_order_cards || []).forEach(updateVehicle);
+      return schedule;
+    }
+
     function loadPersistedData(schedule) {
       if (!schedule) return null;
       const saved = localStorage.getItem(storageKey(schedule));
-      if (!saved) return clone(schedule);
+      if (!saved) return applyCurrentVehicleInfo(clone(schedule));
       try {
         const parsed = JSON.parse(saved);
-        return isValidScheduleData(parsed) ? parsed : clone(schedule);
+        return applyCurrentVehicleInfo(isValidScheduleData(parsed) ? parsed : clone(schedule));
       } catch (_error) {
-        return clone(schedule);
+        return applyCurrentVehicleInfo(clone(schedule));
       }
     }
 
