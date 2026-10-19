@@ -18,6 +18,8 @@ ANY_VEHICLE_PATTERN = re.compile(r"^[1-7]호차$")
 EMPTY_MARKERS = {"", "-", "x", "0"}
 
 
+# Authoritative vehicle details. Change only on an explicit vehicle-information request.
+# Daily workbooks supply schedules and assignments, never these fixed fields.
 VEHICLE_METADATA: dict[str, dict[str, str]] = {
     "1호차": {
         "vehicle_number": "716호1749",

@@ -890,7 +890,8 @@ def render_html(
       companion: {json.dumps(companion_candidates, ensure_ascii=False)},
     }};
     const RESIDENT_NAMES = {json.dumps(resident_names, ensure_ascii=False)};
-    const VEHICLE_INFO_UPDATES = {json.dumps({name: {key: VEHICLE_METADATA[name][key] for key in keys} for name, keys in {"3호차": ("insurance_company", "insurance_phone"), "5호차": ("display_name", "vehicle_number", "insurance_company", "insurance_phone"), "7호차": ("display_name", "vehicle_number", "insurance_company", "insurance_phone")}.items()}, ensure_ascii=False)};
+    // Vehicle details are fixed configuration, independent of uploaded workbooks.
+    const FIXED_VEHICLE_METADATA = {json.dumps(VEHICLE_METADATA, ensure_ascii=False)};
     const initialSchedules = JSON.parse(document.getElementById("schedule-data").textContent);
     const UPLOADED_SCHEDULES_KEY = "bandi_shuttle_uploaded_schedules";
     const hydratedMonths = new Set();
@@ -1029,8 +1030,8 @@ def render_html(
     function applyCurrentVehicleInfo(schedule) {{
       if (!schedule) return schedule;
       // Stored and server schedules can predate the current vehicle information.
-      // Only update the requested fields; preserve all schedule edits.
-      const updateVehicle = (vehicle) => Object.assign(vehicle, VEHICLE_INFO_UPDATES[vehicle.vehicle_name] || {{}});
+      // Fixed vehicle fields always win; preserve assignments, times and other edits.
+      const updateVehicle = (vehicle) => Object.assign(vehicle, FIXED_VEHICLE_METADATA[vehicle.vehicle_name] || {{}});
       schedule.vehicles.forEach(updateVehicle);
       (schedule.home?.dropoff_order_cards || []).forEach(updateVehicle);
       return schedule;
@@ -2075,7 +2076,7 @@ def render_html(
       const schedule = baseScheduleForDate();
       if (schedule) {{
         localStorage.removeItem(storageKey(schedule));
-        state.data = clone(schedule);
+        state.data = applyCurrentVehicleInfo(clone(schedule));
       }} else {{
         state.data = null;
       }}
