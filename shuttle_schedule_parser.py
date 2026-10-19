@@ -37,8 +37,8 @@ VEHICLE_METADATA: dict[str, dict[str, str]] = {
         "vehicle_number": "75라3559",
         "display_name": "3호차(75라3559)",
         "vehicle_type": "승합차",
-        "insurance_company": "KB손해보험",
-        "insurance_phone": "1544-0114",
+        "insurance_company": "현대해상",
+        "insurance_phone": "1588-5656",
     },
     "4호차": {
         "vehicle_number": "76호5003",
@@ -48,18 +48,18 @@ VEHICLE_METADATA: dict[str, dict[str, str]] = {
         "insurance_phone": "1588-2114",
     },
     "5호차": {
-        "vehicle_number": "219가2466",
-        "display_name": "5호차(219가2466)",
-        "vehicle_type": "소형승용차",
-        "insurance_company": "현대해상",
-        "insurance_phone": "1588-5656",
-    },
-    "7호차": {
         "vehicle_number": "163하3128",
-        "display_name": "7호차(163하3128)",
+        "display_name": "5호차(163하3128)",
         "vehicle_type": "소형승용차",
         "insurance_company": "BNK캐피탈",
         "insurance_phone": "1644-2254",
+    },
+    "7호차": {
+        "vehicle_number": "154주6709",
+        "display_name": "7호차(154주6709)",
+        "vehicle_type": "소형승용차",
+        "insurance_company": "현대해상",
+        "insurance_phone": "1588-5656",
     },
 }
 
