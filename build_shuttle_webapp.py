@@ -2262,7 +2262,7 @@ def render_html(
       updateMobileStickyOffset();
       syncDateUrl(true);
       renderApp();
-      window.setInterval(refreshForClockChange, 15_000);
+      window.setInterval(refreshForClockChange, 60_000);
     }})();
   </script>
 </body>
