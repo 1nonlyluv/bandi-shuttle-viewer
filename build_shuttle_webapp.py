@@ -986,6 +986,9 @@ def render_html(
     }}
 
     let activeDate = parseActiveDate();
+    let lastObservedTodayKey = todayDateKey();
+    let lastObservedMobileSide = defaultMobileSide();
+    let clockRefreshInFlight = false;
     let state = {{
       data: null,
       isAdmin: false,
@@ -1076,6 +1079,41 @@ def render_html(
 
     function defaultMobileSide() {{
       return currentHourInSeoul() >= 12 ? "dropoff" : "pickup";
+    }}
+
+    async function refreshForClockChange() {{
+      if (clockRefreshInFlight) return;
+      const observedTodayKey = todayDateKey();
+      const observedMobileSide = defaultMobileSide();
+      const previousTodayKey = lastObservedTodayKey;
+      const dateChanged = observedTodayKey !== previousTodayKey;
+      const sideChanged = observedMobileSide !== lastObservedMobileSide;
+      if (!dateChanged && !sideChanged) return;
+
+      clockRefreshInFlight = true;
+      lastObservedTodayKey = observedTodayKey;
+      lastObservedMobileSide = observedMobileSide;
+      try {{
+        let shouldRender = false;
+        // Only advance automatically when the viewer was showing yesterday's
+        // current schedule. A manually selected past/future date stays put.
+        if (dateChanged && activeDateKey() === previousTodayKey) {{
+          activeDate = new Date(observedTodayKey + "T12:00:00");
+          await syncServerSchedulesForDate(activeDate, {{ force: true }});
+          syncScheduleForActiveDate();
+          renderHeroDate();
+          updateMobileStickyOffset();
+          syncDateUrl(true);
+          shouldRender = true;
+        }}
+        if (sideChanged) {{
+          state.mobileSide = observedMobileSide;
+          shouldRender = true;
+        }}
+        if (shouldRender) renderApp();
+      }} finally {{
+        clockRefreshInFlight = false;
+      }}
     }}
 
     async function fetchUploadedSchedulesForMonth(monthKey) {{
@@ -2030,6 +2068,11 @@ def render_html(
         positionMenuPanel();
       }}
     }}, {{ passive: true }});
+    document.addEventListener("visibilitychange", () => {{
+      if (document.visibilityState === "visible") {{
+        refreshForClockChange();
+      }}
+    }});
 
     window.addEventListener("mouseup", (event) => {{
       if (event.button === 3 && window.history.length > 1) {{
@@ -2219,6 +2262,7 @@ def render_html(
       updateMobileStickyOffset();
       syncDateUrl(true);
       renderApp();
+      window.setInterval(refreshForClockChange, 15_000);
     }})();
   </script>
 </body>
