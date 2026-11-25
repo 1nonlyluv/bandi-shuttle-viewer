@@ -169,17 +169,11 @@ class handler(BaseHTTPRequestHandler):
                 upload_rows = json.loads(body.decode("utf-8") or "[]")
                 upload_id = upload_rows[0]["id"] if upload_rows else None
 
-                status, body = supabase_request(
-                    f"/rest/v1/schedule_days?month_key=eq.{urllib.parse.quote(primary_month_key, safe='')}",
-                    method="DELETE",
-                    headers={"Prefer": "return=minimal"},
-                )
-                if status >= 400:
-                    return json_response(self, status, {"error": f"Existing month cleanup failed: {body.decode('utf-8', 'ignore')}"})
-
                 for row in schedule_rows:
                     row["source_upload_id"] = upload_id
 
+                # Merge at the day level. A daily workbook must update only
+                # its own date(s), never erase earlier uploads from the month.
                 status, body = supabase_request(
                     "/rest/v1/schedule_days?on_conflict=date_key",
                     method="POST",
