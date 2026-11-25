@@ -1100,6 +1100,7 @@ def render_html(
         if (dateChanged && activeDateKey() === previousTodayKey) {{
           activeDate = new Date(observedTodayKey + "T12:00:00");
           await syncServerSchedulesForDate(activeDate, {{ force: true }});
+          await syncRecentSearchSchedules(activeDate);
           syncScheduleForActiveDate();
           renderHeroDate();
           updateMobileStickyOffset();
@@ -1171,12 +1172,65 @@ def render_html(
       return applyUploadedSchedulesForMonth(monthKey, scheduleMap, {{ clearPersisted }});
     }}
 
+    function dateKeyDaysBefore(referenceDate, daysBefore) {{
+      const target = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate() - daysBefore, 12);
+      return `${{target.getFullYear()}}-${{String(target.getMonth() + 1).padStart(2, "0")}}-${{String(target.getDate()).padStart(2, "0")}}`;
+    }}
+
+    function recentSearchDateKeys(referenceDate = activeDate) {{
+      if (!referenceDate) return [];
+      return Array.from({{ length: 7 }}, (_unused, index) => dateKeyDaysBefore(referenceDate, index));
+    }}
+
+    async function syncRecentSearchSchedules(referenceDate = activeDate) {{
+      const monthKeys = [...new Set(recentSearchDateKeys(referenceDate).map((dateKey) => dateKey.slice(0, 7)))];
+      for (const monthKey of monthKeys) {{
+        const scheduleMap = await fetchUploadedSchedulesForMonth(monthKey);
+        if (scheduleMap != null) {{
+          applyUploadedSchedulesForMonth(monthKey, scheduleMap);
+        }}
+      }}
+    }}
+
+    function residentNamesFromSchedule(schedule) {{
+      const names = new Set();
+      if (!schedule) return names;
+      (schedule.vehicles || []).forEach((vehicle) => {{
+        ["pickup_rounds", "dropoff_rounds"].forEach((sideKey) => {{
+          (vehicle[sideKey] || []).forEach((roundData) => {{
+            (roundData.entries || []).forEach((entry) => {{
+              if (entry?.name) names.add(entry.name);
+            }});
+          }});
+        }});
+      }});
+      ["self_pickup", "self_dropoff"].forEach((key) => {{
+        (schedule[key]?.entries || []).forEach((entry) => {{
+          if (entry?.name) names.add(entry.name);
+        }});
+      }});
+      return names;
+    }}
+
+    function residentSearchNames() {{
+      const todayNames = residentNamesFromSchedule(state.data);
+      const recentNames = new Set();
+      recentSearchDateKeys().forEach((dateKey) => {{
+        residentNamesFromSchedule(uploadedSchedules[dateKey] || initialSchedules[dateKey]).forEach((name) => recentNames.add(name));
+      }});
+      return [
+        ...todayNames,
+        ...[...recentNames].filter((name) => !todayNames.has(name)),
+        ...RESIDENT_NAMES.filter((name) => !todayNames.has(name) && !recentNames.has(name)),
+      ];
+    }}
+
     function updateResidentSuggestions() {{
       if (!residentSuggestions || !residentSearchInput) return;
       const query = residentSearchInput.value.trim();
       residentSuggestions.innerHTML = "";
       if (query.length < 1) return;
-      RESIDENT_NAMES
+      residentSearchNames()
         .filter((name) => name.includes(query))
         .slice(0, 12)
         .forEach((name) => {{
@@ -1235,8 +1289,10 @@ def render_html(
         residentSearchInput?.focus();
         return;
       }}
-      const exactMatch = RESIDENT_NAMES.find((name) => name === query);
-      const matchedName = exactMatch || RESIDENT_NAMES.find((name) => name.includes(query));
+      const candidates = residentSearchNames();
+      const currentScheduleNames = [...residentNamesFromSchedule(state.data)];
+      const exactMatch = currentScheduleNames.find((name) => name === query) || candidates.find((name) => name === query);
+      const matchedName = exactMatch || currentScheduleNames.find((name) => name.includes(query)) || candidates.find((name) => name.includes(query));
       if (!matchedName) {{
         window.alert("일치하는 어르신을 찾지 못했습니다.");
         return;
@@ -1864,6 +1920,7 @@ def render_html(
         if (payload.latest_date && /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(payload.latest_date)) {{
           activeDate = new Date(payload.latest_date + "T12:00:00");
         }}
+        await syncRecentSearchSchedules(activeDate);
         state.mobileSide = defaultMobileSide();
         syncScheduleForActiveDate();
         renderHeroDate();
@@ -2019,6 +2076,7 @@ def render_html(
         updateMobileStickyOffset();
         syncDateUrl();
         await syncServerSchedulesForDate();
+        await syncRecentSearchSchedules(activeDate);
         syncScheduleForActiveDate();
         renderApp();
       }});
@@ -2036,6 +2094,7 @@ def render_html(
         updateMobileStickyOffset();
         syncDateUrl(true);
         await syncServerSchedulesForDate(activeDate);
+        await syncRecentSearchSchedules(activeDate);
         renderApp();
         return;
       }}
@@ -2044,6 +2103,7 @@ def render_html(
       updateMobileStickyOffset();
       syncDateUrl(true);
       await syncServerSchedulesForDate(activeDate);
+      await syncRecentSearchSchedules(activeDate);
       await syncScheduleForActiveDate();
       renderApp();
     }});
@@ -2053,6 +2113,7 @@ def render_html(
       renderHeroDate();
       updateMobileStickyOffset();
       await syncServerSchedulesForDate(activeDate);
+      await syncRecentSearchSchedules(activeDate);
       syncScheduleForActiveDate();
       renderApp();
     }});
@@ -2257,6 +2318,7 @@ def render_html(
     (async () => {{
       state.mobileSide = defaultMobileSide();
       await syncServerSchedulesForDate(activeDate);
+      await syncRecentSearchSchedules(activeDate);
       syncScheduleForActiveDate();
       renderHeroDate();
       updateMobileStickyOffset();
